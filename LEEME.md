@@ -5,7 +5,10 @@ App tipo Duolingo para dominar R y RStudio, construida sobre el temario de Canva
 
 ## Cómo abrirla
 
-Doble clic en **`Abrir R Archilla.bat`**. Se abre el navegador en `http://localhost:8421`.
+**En el móvil o en cualquier sitio:** https://pokloweb.github.io/r-archilla/
+(en el móvil, menú del navegador → «Añadir a pantalla de inicio» para tenerla como app).
+
+**En el PC sin internet a GitHub:** doble clic en **`Abrir R Archilla.bat`**. Se abre el navegador en `http://localhost:8421`.
 Deja abierta la ventana negra mientras la uses.
 
 Necesita internet la primera vez de cada sesión: descarga R (webR, R compilado a WebAssembly)
