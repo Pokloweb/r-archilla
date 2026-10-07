@@ -1,6 +1,6 @@
 // Service worker de R Archilla: la app funciona sin conexión y R (webR) se guarda
 // en caché tras la primera carga, así que también se puede practicar código offline.
-const VERSION = 'ra-2026-10-08-2';
+const VERSION = 'ra-2026-10-08-3';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = 'runtime-v1'; // webR, paquetes de R y fuentes: no cambian entre versiones de la app
 

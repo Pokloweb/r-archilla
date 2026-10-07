@@ -828,3 +828,9 @@ body::before {
 .exam-review summary { cursor: pointer; font-weight: 800; }
 .er-sol { margin: 8px 0 4px; }
 .er-sol pre { background: var(--code-bg); border-radius: 8px; padding: 6px 10px; overflow-x: auto; }
+.lesson-intro { margin: 10px 0 4px; animation: viewin .4s ease; }
+.lesson-intro .m { width: 70px; flex: none; animation: hop .6s cubic-bezier(.3, 1.6, .5, 1); }
+.kbd-hint { margin-top: 18px; font-size: 12.5px; color: var(--text-faint); font-weight: 700; }
+@media (hover: none) { .kbd-hint { display: none; } }
+:focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 70%, transparent); outline-offset: 2px; }
+.opt:focus-visible, .chip:focus-visible, .node:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }

@@ -612,6 +612,7 @@
     const { html, blocks } = md(card.md);
     const last = S.theoryIdx === S.theory.length - 1;
     const inner = setBody(`
+      ${S.theoryIdx === 0 && S.node.desc ? `<div class="archi-tip lesson-intro"><div class="m">${UI.mascot('happy')}</div><div class="bubble"><b>${esc(S.node.title)}</b><br>${inline(S.node.desc)}</div></div>` : ''}
       <div class="ls-kicker">📖 Teoría · ${S.theoryIdx + 1}/${S.theory.length}</div>
       <h1 class="ls-title">${inline(card.title)}</h1>
       <div class="theory">${html}</div>
@@ -659,7 +660,8 @@
     const wide = ex.type === 'code';
     const inner = setBody(`
       <div class="ls-kicker">${ex.bug ? '🐞 Encuentra y arregla el error' : TYPE_LABEL[ex.type] || ''}${item.retry ? ' · <span style="color:var(--orange)">↻ repaso de error</span>' : ''}${S.combo >= 3 ? ` <span class="combo">🔥 ${S.combo} seguidas</span>` : ''}</div>
-      <div class="ex-host"></div>`, wide);
+      <div class="ex-host"></div>
+      <div class="kbd-hint">${['mc', 'tf'].includes(ex.type) ? '<span class="kbd">1</span>–<span class="kbd">4</span> elegir · ' : ''}${ex.type === 'code' ? '<span class="kbd">Ctrl</span>+<span class="kbd">Enter</span> ejecutar · <span class="kbd">Alt</span>+<span class="kbd">-</span> escribe &lt;-' : '<span class="kbd">Enter</span> comprobar'}</div>`, wide);
     inner.querySelector('.ex-host').appendChild(ctrl.el);
     S.ctrl = ctrl;
     setFoot(`

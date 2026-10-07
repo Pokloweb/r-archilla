@@ -21,7 +21,13 @@ pasan a autoevaluación.
   ggplot2 y R Markdown, Análisis exploratorio) + 2 simulacros, 62 niveles y unos 400 ejercicios.
 - Temas 2–3 a partir de los apuntes, el banco de ejercicios, los scripts de clase y el simulacro de Canvas.
 - Temas 4–6 (funciones, dplyr/ggplot2/R Markdown, análisis exploratorio) según la guía docente.
-- Consola R tipo RStudio (script, consola, environment, gráficos), repaso de errores, apuntes y chuletas.
+- Consola R tipo RStudio (script, consola, environment, gráficos), apuntes y chuletas.
+- **Entrenar**: plan hasta el Parcial 1, reto diario, contrarreloj, tarjetas con repetición
+  espaciada, Cazabugs (20 códigos con errores típicos), repaso de fallos, simulacros en modo
+  examen (nota sobre 10 al final) y dominio por mundo.
+- **Paso a paso**: tabla vuelta a vuelta de cualquier bucle, con R real.
+- **Traductor de errores**: explica en español los mensajes de error de R.
+- App instalable (PWA): funciona sin conexión y guarda R en caché tras la primera carga.
 - El progreso se guarda en el navegador; desde **Perfil** se puede exportar e importar.
 
 ## Para desarrolladores
