@@ -66,7 +66,7 @@
           const id = 'cb' + Math.random().toString(36).slice(2, 9);
           blocks.push({ id, code, run: lang === 'r' });
           html += `<div class="code-block" data-cb="${id}"><pre>${UI.hl(code)}</pre>` +
-            (lang === 'r' ? `<div class="cb-bar"><button class="cb-run alt" data-copy>📋 Consola</button><button class="cb-run" data-run>▶ Ejecutar</button></div><div class="cb-out" hidden></div>` : '') +
+            (lang === 'r' ? `<div class="cb-bar"><button class="cb-run alt" data-copy>📋 Consola</button>${/(for|while|repeat)/.test(code) ? '<button class="cb-run alt" data-trace>🔬 Paso a paso</button>' : ''}<button class="cb-run" data-run>▶ Ejecutar</button></div><div class="cb-out" hidden></div>` : '') +
             `</div>`;
         }
         continue;
@@ -114,6 +114,8 @@
       const out = el.querySelector('.cb-out');
       const runBtn = el.querySelector('[data-run]');
       el.querySelector('[data-copy]').onclick = () => opts.onCopy && opts.onCopy(b.code);
+      const tr = el.querySelector('[data-trace]');
+      if (tr) tr.onclick = () => { window.Trace && Trace.show(b.code, { setup: opts.setup || '' }); opts.onTrace && opts.onTrace(); };
       runBtn.onclick = async () => {
         out.hidden = false;
         out.innerHTML = '<div class="console"><span class="l-info">Ejecutando…</span></div>';
@@ -318,13 +320,18 @@
     if (UI.muted) return;
     try {
       actx = actx || new (window.AudioContext || window.webkitAudioContext)();
-      const notes = { ok: [[660, 0], [880, 0.09]], bad: [[220, 0], [185, 0.1]], done: [[523, 0], [659, 0.1], [784, 0.2], [1047, 0.32]], tap: [[520, 0]] }[kind] || [];
+      const notes = {
+        ok: [[660, 0], [880, 0.09]], bad: [[220, 0], [185, 0.1]], tap: [[520, 0]],
+        done: [[523, 0], [659, 0.1], [784, 0.2], [1047, 0.32]],
+        level: [[523, 0], [659, 0.08], [784, 0.16], [1047, 0.24], [1319, 0.36], [1568, 0.5]],
+        flip: [[700, 0], [940, 0.05]], combo: [[784, 0], [988, 0.07], [1175, 0.14]], heart: [[330, 0], [247, 0.12], [196, 0.24]],
+      }[kind] || [];
       const t0 = actx.currentTime;
       for (const [f, dt] of notes) {
         const o = actx.createOscillator(), g = actx.createGain();
-        o.type = kind === 'bad' ? 'sawtooth' : 'triangle';
+        o.type = kind === 'bad' || kind === 'heart' ? 'sawtooth' : 'triangle';
         o.frequency.value = f;
-        const vol = kind === 'tap' ? 0.05 : kind === 'bad' ? 0.07 : 0.12;
+        const vol = kind === 'tap' || kind === 'flip' ? 0.05 : kind === 'bad' || kind === 'heart' ? 0.07 : 0.12;
         g.gain.setValueAtTime(0.0001, t0 + dt);
         g.gain.exponentialRampToValueAtTime(vol, t0 + dt + 0.02);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + dt + (kind === 'tap' ? 0.06 : 0.22));
@@ -368,6 +375,24 @@
     back.addEventListener('click', (e) => { if (e.target === back) close(); });
     wire && wire(back.querySelector('.modal'), close);
     return close;
+  };
+
+  // Vibración en móviles (Android; iOS la ignora)
+  UI.vibrate = function (kind) {
+    if (UI.noHaptics || !navigator.vibrate) return;
+    try { navigator.vibrate({ ok: 15, bad: [40, 50, 40], done: [20, 40, 20, 40, 60], tap: 8 }[kind] || 10); } catch (e) { /* sin vibración */ }
+  };
+
+  // Contador que sube animado (XP en los resultados)
+  UI.countUp = function (el, to, ms = 900, prefix = '') {
+    if (!el) return;
+    if (matchMedia('(prefers-reduced-motion: reduce)').matches) { el.textContent = prefix + to; return; }
+    const t0 = performance.now();
+    (function step(t) {
+      const p = Math.min(1, (t - t0) / ms);
+      el.textContent = prefix + Math.round(to * (1 - Math.pow(1 - p, 3)));
+      if (p < 1) requestAnimationFrame(step);
+    })(t0);
   };
 
   UI.shuffle = function (arr) {

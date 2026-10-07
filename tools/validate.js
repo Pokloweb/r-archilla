@@ -38,6 +38,7 @@ for (const u of ctx.RA_UNITS) {
       const ref = `${n.id}:${i}`;
       counts[ex.type] = (counts[ex.type] || 0) + 1;
       if (ex.type === 'code') tests.push({ ref, ex, code: ex.solution, check: ex.check || 'TRUE' });
+      if (ex.type === 'code' && ex.bug) tests.push({ ref: ref + '~starter', ex: { ...ex, mustFail: true }, code: ex.starter, check: ex.check || 'TRUE' });
       else if (ex.type === 'output' || (ex.type === 'mc' && ex.run)) tests.push({ ref, ex, code: ex.code, check: 'TRUE' });
       else if (ex.type === 'fill' && ex.run !== false) {
         let k = 0;
@@ -97,6 +98,7 @@ for (const t of tests) {
   const r = byRef.get(t.ref);
   const fail = (msg) => { fails++; console.log(`✗ ${t.ref} [${t.ex.type}] ${msg}`); };
   if (!r) { fail('sin resultado (¿el script R se detuvo?)'); continue; }
+  if (t.ex.mustFail) { if (r.ran && r.check) fail('el código con bug pasa la comprobación'); continue; }
   if (!r.ran && !t.ex.expectError) { fail('error al ejecutar: ' + r.errText); continue; }
   if (!r.check) { fail('check FALSE. salida: ' + normOut(r.outText).slice(0, 200)); continue; }
   if (t.ex.type === 'output') {

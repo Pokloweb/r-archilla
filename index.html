@@ -16,9 +16,10 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@500;700;800;900&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/styles.css">
+  <link rel="stylesheet" href="css/styles.css?v=2">
 </head>
 <body>
+  <div id="splash" aria-hidden="true"><div class="sp-hex" data-mascot="big"></div><div class="sp-name">R Archilla</div><div class="sp-bar"><span></span></div></div>
   <div id="app">
     <nav id="sidebar">
       <a class="brand" href="#/aprender">
@@ -26,8 +27,8 @@
         <span class="brand-name">R Archilla</span>
       </a>
       <a class="nav-item" data-route="aprender" href="#/aprender"><span class="ni-icon">🏠</span><span>Aprender</span></a>
+      <a class="nav-item" data-route="entrenar" href="#/entrenar"><span class="ni-icon">🏋️</span><span>Entrenar</span></a>
       <a class="nav-item" data-route="consola" href="#/consola"><span class="ni-icon">💻</span><span>Consola R</span></a>
-      <a class="nav-item" data-route="repaso" href="#/repaso"><span class="ni-icon">🎯</span><span>Repaso</span></a>
       <a class="nav-item" data-route="apuntes" href="#/apuntes"><span class="ni-icon">📚</span><span>Apuntes</span></a>
       <a class="nav-item" data-route="perfil" href="#/perfil"><span class="ni-icon">👤</span><span>Perfil</span></a>
     </nav>
@@ -39,6 +40,7 @@
           <span class="stat" id="tb-streak" title="Racha de días">🔥 <b>0</b></span>
           <span class="stat" id="tb-xp" title="XP total">⚡ <b>0</b></span>
           <span class="stat" id="tb-hearts" title="Vidas">❤️ <b>5</b></span>
+          <button class="icon-btn" id="tb-sound" title="Sonido" aria-label="Activar o desactivar el sonido">🔊</button>
         </div>
       </header>
       <div id="view"></div>
@@ -52,17 +54,24 @@
   <canvas id="confetti"></canvas>
 
   <script>window.RA_UNITS = [];</script>
-  <script src="js/content/u2.js"></script>
-  <script src="js/content/u3.js"></script>
-  <script src="js/content/u4.js"></script>
-  <script src="js/content/u5.js"></script>
-  <script src="js/content/ex1.js"></script>
-  <script src="js/content/u6.js"></script>
-  <script src="js/content/u7.js"></script>
-  <script src="js/content/u8.js"></script>
-  <script src="js/content/ex2.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/app.js"></script>
-  <script type="module" src="js/r-engine.js"></script>
+  <script src="js/content/u2.js?v=2"></script>
+  <script src="js/content/u3.js?v=2"></script>
+  <script src="js/content/u4.js?v=2"></script>
+  <script src="js/content/u5.js?v=2"></script>
+  <script src="js/content/ex1.js?v=2"></script>
+  <script src="js/content/u6.js?v=2"></script>
+  <script src="js/content/u7.js?v=2"></script>
+  <script src="js/content/u8.js?v=2"></script>
+  <script src="js/content/ex2.js?v=2"></script>
+  <script src="js/content/bugs.js?v=2"></script>
+  <script src="js/ui.js?v=2"></script>
+  <script src="js/trace.js?v=2"></script>
+  <script src="js/app.js?v=2"></script>
+  <script type="module" src="js/r-engine.js?v=2"></script>
+  <script>
+    if ('serviceWorker' in navigator && location.protocol === 'https:') {
+      addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+    }
+  </script>
 </body>
 </html>

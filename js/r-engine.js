@@ -1,7 +1,7 @@
 // Motor R de R Archilla: R real (webR, R compilado a WebAssembly) dentro del navegador.
 // Expone window.REngine con: ready (promesa), status, run(), grade(), install(), consola persistente.
 
-const WEBR_URL = 'https://webr.r-wasm.org/latest/webr.mjs';
+const WEBR_URL = 'https://webr.r-wasm.org/v0.6.0/webr.mjs';
 
 // Marcas de línea en la salida: \x01 eco del comando, \x02 error, \x03 aviso/mensaje.
 const R_HELPERS = String.raw`
@@ -68,6 +68,96 @@ const R_HELPERS = String.raw`
   tryCatch(isTRUE(eval(parse(text = check), envir = env)), error = function(e) FALSE)
 }
 .ra_console <- .ra_new_env()
+
+# ---- Trazador paso a paso: instrumenta los bucles y guarda el valor de las variables en cada vuelta ----
+.ra_js <- function(s) {
+  s <- gsub("\\", "\\\\", s, fixed = TRUE)
+  s <- gsub('"', '\\"', s, fixed = TRUE)
+  s <- gsub("\n", "\\n", s, fixed = TRUE)
+  s <- gsub("\t", "\\t", s, fixed = TRUE)
+  paste0('"', s, '"')
+}
+.ra_fmt <- function(x) {
+  if (is.null(x)) return("NULL")
+  if (is.function(x)) return("<función>")
+  if (is.data.frame(x)) return(sprintf("data.frame %d×%d", nrow(x), ncol(x)))
+  if (is.matrix(x)) return(sprintf("matriz %d×%d", nrow(x), ncol(x)))
+  if (is.list(x)) return(sprintf("lista (%d)", length(x)))
+  if (is.factor(x)) x <- as.character(x)
+  if (is.atomic(x)) {
+    if (length(x) == 0) return(paste0(class(x)[1], "(0)"))
+    shown <- if (is.character(x)) ifelse(is.na(x), "NA", paste0('"', x, '"')) else format(x, digits = 6, trim = TRUE)
+    if (length(x) > 8) shown <- c(shown[1:8], paste0("… (", length(x), ")"))
+    return(paste(shown, collapse = " "))
+  }
+  class(x)[1]
+}
+.ra_trace <- function(code, setup = "") {
+  env <- .ra_new_env()
+  .ra_setup_run(setup, env)
+  base_vars <- ls(env)
+  rows <- character()
+  buf <- character()
+  tc <- textConnection("buf", "w", local = TRUE)
+  seen <- 0L
+  take_out <- function() {
+    lines <- textConnectionValue(tc)
+    new <- if (length(lines) > seen) lines[(seen + 1L):length(lines)] else character()
+    seen <<- length(lines)
+    new
+  }
+  env$.ra_tick <- function(label) {
+    vars <- setdiff(ls(env), base_vars)
+    vals <- vapply(vars, function(v) .ra_fmt(get(v, envir = env)), character(1))
+    o <- take_out()
+    rows[length(rows) + 1L] <<- paste0("{\"l\":", .ra_js(label), ",\"v\":{",
+      paste0(.ra_js(vars), ":", .ra_js(vals), collapse = ","), "},\"o\":", .ra_js(paste(o, collapse = "\n")), "}")
+    if (length(rows) >= 300) stop("Hay demasiadas vueltas para mostrarlas (máximo 300).", call. = FALSE)
+  }
+  tick <- function(label) call(".ra_tick", label)
+  short <- function(e) { s <- paste(deparse(e, width.cutoff = 60L), collapse = " "); if (nchar(s) > 28) paste0(substr(s, 1, 27), "…") else s }
+  ins <- function(e, label = NULL) {
+    if (!is.call(e)) return(e)
+    f <- e[[1]]
+    if (identical(f, as.name("next")) || identical(f, as.name("break"))) {
+      return(if (is.null(label)) e else call("{", tick(label), e))
+    }
+    if (identical(f, as.name("function"))) return(e)
+    if (identical(f, as.name("for"))) {
+      lab <- paste0("for (", deparse(e[[2]]), " in ", short(e[[3]]), ")")
+      e[[4]] <- call("{", ins(e[[4]], lab), tick(lab))
+      return(e)
+    }
+    if (identical(f, as.name("while"))) {
+      lab <- paste0("while (", short(e[[2]]), ")")
+      e[[3]] <- call("{", ins(e[[3]], lab), tick(lab))
+      return(e)
+    }
+    if (identical(f, as.name("repeat"))) {
+      e[[2]] <- call("{", ins(e[[2]], "repeat"), tick("repeat"))
+      return(e)
+    }
+    if (length(e) > 1) for (i in 2:length(e)) {
+      if (is.symbol(e[[i]]) || is.null(e[[i]]) || !is.call(e[[i]])) next
+      e[[i]] <- ins(e[[i]], label)
+    }
+    e
+  }
+  err <- ""
+  sink(tc)
+  tryCatch({
+    exprs <- parse(text = code, keep.source = FALSE)
+    for (ex in exprs) {
+      r <- withVisible(eval(ins(ex), envir = env))
+      if (r$visible) print(r$value)
+    }
+  }, error = function(e) err <<- conditionMessage(e),
+     finally = { sink(); })
+  rest <- take_out()
+  close(tc)
+  paste0("{\"rows\":[", paste(rows, collapse = ","), "],\"out\":", .ra_js(paste(c(buf), collapse = "\n")),
+         ",\"err\":", .ra_js(err), "}")
+}
 `;
 
 const listeners = new Set();
@@ -178,6 +268,17 @@ REngine.grade = (code, { setup = '', check = 'TRUE' } = {}) => enqueue(async () 
     const passed = ranOk && (await webR.evalRBoolean('.ra_check(.ra_chk, .ra_cur)'));
     const env = await envSummary('.ra_cur');
     return { ...out, ranOk, passed, env };
+  } finally { shelter.purge(); }
+});
+
+// Trazador: devuelve { rows: [{ l, v: {var: valor}, o }], out, err } con una fila por vuelta de bucle.
+REngine.trace = (code, { setup = '' } = {}) => enqueue(async () => {
+  if (!(await REngine.ready)) throw new Error('R no disponible');
+  try {
+    await bind('.ra_code', code);
+    await bind('.ra_setup', setup);
+    const json = await webR.evalRString('.ra_trace(.ra_code, .ra_setup)');
+    return JSON.parse(json);
   } finally { shelter.purge(); }
 });
 

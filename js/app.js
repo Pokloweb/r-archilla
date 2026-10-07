@@ -1,7 +1,8 @@
 // R Archilla — aplicación principal (camino de niveles, lecciones, repaso, consola, apuntes, perfil).
 (function () {
   const { esc, inline, hl, md } = UI;
-  const UNITS = window.RA_UNITS;
+  const UNITS = window.RA_UNITS.filter((u) => u.kind !== 'extra');   // mundos y simulacros del camino
+  const EXTRAS = window.RA_UNITS.filter((u) => u.kind === 'extra');  // contenido solo de Entrenar (Cazabugs)
   const $ = (sel, root = document) => root.querySelector(sel);
 
   // ================= Configuración =================
@@ -40,15 +41,26 @@
     { id: 'console', icon: '💻', name: 'Explorador', desc: 'Ejecuta 20 veces código en la Consola R' },
     { id: 'review', icon: '🎯', name: 'Constante', desc: 'Completa 5 repasos' },
     { id: 'xp1000', icon: '⚡', name: 'Mil voltios', desc: 'Consigue 1000 XP' },
+    { id: 'daily3', icon: '📅', name: 'Retador', desc: 'Completa 3 retos diarios' },
+    { id: 'rush15', icon: '⏱️', name: 'Rayo', desc: '15 aciertos en una contrarreloj' },
+    { id: 'cards50', icon: '🃏', name: 'Memoria de elefante', desc: 'Repasa 50 tarjetas' },
+    { id: 'bugs', icon: '🐞', name: 'Cazabugs', desc: 'Arregla 10 códigos con errores' },
+    { id: 'tracer', icon: '🔬', name: 'Detective', desc: 'Usa el paso a paso 5 veces' },
     { id: 'genio', icon: '🧙', name: 'Genio de R', desc: 'Completa todo el camino' },
   ];
+  // Intervalos de la repetición espaciada de tarjetas (cajas de Leitner), en días
+  const BOX_DAYS = [0, 1, 2, 4, 8, 16];
 
   // ================= Estado =================
   const defaultState = () => ({
     xp: 0, streak: 0, lastDay: null, hearts: MAX_HEARTS, heartsTs: Date.now(),
-    infinite: false, freeMode: false, sound: true, theme: 'auto', dailyGoal: 30,
+    infinite: false, freeMode: false, sound: true, haptics: true, theme: 'auto', dailyGoal: 30,
     daily: {}, lessons: {}, mistakes: {}, achievements: {},
-    stats: { answered: 0, correct: 0, lessonsDone: 0, perfect: 0, codeOk: 0, consoleRuns: 0, reviews: 0 },
+    exStats: {},        // ref -> [respondidas, acertadas]
+    cards: {},          // id de tarjeta -> { box, due }
+    challenges: {},     // día -> aciertos del reto diario
+    rushBest: 0, lastLevel: 1, streakShown: null,
+    stats: { answered: 0, correct: 0, lessonsDone: 0, perfect: 0, codeOk: 0, consoleRuns: 0, reviews: 0, cardsSeen: 0, bugsFixed: 0, traces: 0 },
     consoleScript: null,
   });
   let state = load();
@@ -117,6 +129,11 @@
     if (s.consoleRuns >= 20) unlockAch('console', fresh);
     if (s.reviews >= 5) unlockAch('review', fresh);
     if (state.xp >= 1000) unlockAch('xp1000', fresh);
+    if (Object.keys(state.challenges).length >= 3) unlockAch('daily3', fresh);
+    if (state.rushBest >= 15) unlockAch('rush15', fresh);
+    if (s.cardsSeen >= 50) unlockAch('cards50', fresh);
+    if (s.bugsFixed >= 10) unlockAch('bugs', fresh);
+    if (s.traces >= 5) unlockAch('tracer', fresh);
     if (NODES.every((n) => isDone(n))) unlockAch('genio', fresh);
     return fresh;
   }
@@ -141,6 +158,30 @@
       (n.exercises || []).forEach((ex, i) => EX_INDEX.set(`${n.id}:${i}`, { ex, node: n }));
     });
   });
+  // Contenido extra: se indexa para repaso y estadísticas, pero no aparece en el camino
+  EXTRAS.forEach((u) => {
+    u.nodes = (u.lessons || []).map((l) => ({ ...l, unit: u, type: 'extra' }));
+    u.nodes.forEach((n) => (n.exercises || []).forEach((ex, i) => EX_INDEX.set(`${n.id}:${i}`, { ex, node: n })));
+  });
+  // Tarjetas de funciones: salen de las chuletas de cada mundo
+  const CARDS = [];
+  UNITS.forEach((u) => (u.cheat || []).forEach((c, i) => CARDS.push({ id: `${u.id}#${i}`, front: c[0], back: c[1], unit: u })));
+  // Mundo al que pertenece cada ejercicio (para el dominio por mundo)
+  const unitOfRef = (ref) => { const e = EX_INDEX.get(ref); return e ? e.node.unit : null; };
+  function recordStat(ref, ok) {
+    const s = state.exStats[ref] || [0, 0];
+    s[0]++; if (ok) s[1]++;
+    state.exStats[ref] = s;
+  }
+  function unitMastery(u) {
+    let seen = 0, good = 0;
+    for (const [ref, s] of Object.entries(state.exStats)) {
+      if (unitOfRef(ref) !== u) continue;
+      seen += s[0]; good += s[1];
+    }
+    const done = u.nodes.filter(isDone).length;
+    return { seen, acc: seen ? good / seen : null, done, total: u.nodes.length };
+  }
   const isDone = (n) => !!(state.lessons[n.id] && state.lessons[n.id].stars > 0);
   const isUnlocked = (n) => state.freeMode || n.seq === 0 || isDone(n) || isDone(NODES[n.seq - 1]);
   const currentNode = () => NODES.find((n) => !isDone(n) && isUnlocked(n)) || null;
@@ -153,6 +194,37 @@
     set('tb-xp', state.xp);
     set('tb-hearts', state.infinite ? '∞' : state.hearts);
     document.getElementById('tb-streak').classList.toggle('dim', !streakAlive());
+    const snd = document.getElementById('tb-sound');
+    if (snd) snd.textContent = state.sound ? '🔊' : '🔇';
+  }
+  function toggleSound() {
+    state.sound = !state.sound;
+    UI.muted = !state.sound;
+    save();
+    renderStats();
+    renderRightbar();
+    toast(state.sound ? 'Sonido activado 🔊' : 'Sonido desactivado 🔇');
+  }
+
+  // ---------- Instalar como app (PWA) ----------
+  let installEvt = null;
+  const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+  window.addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; renderRightbar(); });
+  function canOfferInstall() { return !isStandalone() && (installEvt || isIOS()); }
+  async function doInstall() {
+    if (installEvt) {
+      installEvt.prompt();
+      const r = await installEvt.userChoice.catch(() => null);
+      installEvt = null;
+      if (r && r.outcome === 'accepted') toast('¡R Archilla instalada! 📲');
+      renderRightbar();
+      return;
+    }
+    UI.modal(`<div class="m">${UI.mascot('happy')}</div><h3>Instalar en el iPhone</h3>
+      <ol style="text-align:left;line-height:1.7"><li>Abre esta página en <b>Safari</b>.</li><li>Toca el botón <b>Compartir</b> (el cuadrado con la flecha hacia arriba).</li><li>Elige <b>«Añadir a pantalla de inicio»</b>.</li></ol>
+      <p class="muted small">Se abrirá a pantalla completa, con su icono, como cualquier app.</p>
+      <div class="btns"><button class="btn" data-ok>Entendido</button></div>`, (m, close) => { m.querySelector('[data-ok]').onclick = close; });
   }
   function daysUntil(date) {
     const d = new Date(date + 'T00:00:00');
@@ -172,7 +244,9 @@
         <span class="stat s-streak ${streakAlive() ? '' : 'dim'}" title="Racha">🔥 <b>${streakAlive()}</b></span>
         <span class="stat s-xp" title="XP">⚡ <b>${state.xp}</b></span>
         <span class="stat s-hearts" title="Vidas">❤️ <b>${state.infinite ? '∞' : state.hearts}</b></span>
+        <button class="icon-btn" data-snd title="Sonido">${state.sound ? '🔊' : '🔇'}</button>
       </div>
+      ${canOfferInstall() ? `<button class="install-card" data-install><span>📲</span><span><b>Instala R Archilla</b><br><span class="small muted">Como app en tu móvil u ordenador, también sin conexión</span></span></button>` : ''}
       ${!state.infinite && nh != null ? `<div class="small muted" style="margin-top:-10px;text-align:right">+1 ❤️ en ${nh} min</div>` : ''}
       <div class="card">
         <h3>Objetivo diario</h3>
@@ -192,6 +266,9 @@
       </div>
       <div class="r-status"><span class="dot ${window.REngine ? REngine.status : ''}"></span>${rStatusText()}</div>
     `;
+    rb.querySelector('[data-snd]').onclick = toggleSound;
+    const ib = rb.querySelector('[data-install]');
+    ib && (ib.onclick = doInstall);
   }
   function rStatusText() {
     if (!window.REngine || REngine.status === 'loading') return 'Cargando R (webR)…';
@@ -206,14 +283,17 @@
   // ================= Router =================
   function route() {
     const h = location.hash.replace(/^#\/?/, '') || 'aprender';
-    const [page, arg] = h.split('/');
+    let [page, arg] = h.split('/');
+    if (page === 'repaso') page = 'entrenar';
     const view = document.getElementById('view');
     view.className = '';
     document.getElementById('app').classList.toggle('no-right', page === 'consola');
     setActiveNav(page);
     renderStats();
     renderRightbar();
-    ({ aprender: viewPath, consola: viewConsole, repaso: viewReview, apuntes: viewNotes, perfil: viewProfile }[page] || viewPath)(view, arg);
+    ({ aprender: viewPath, consola: viewConsole, entrenar: viewTrain, apuntes: viewNotes, perfil: viewProfile }[page] || viewPath)(view, arg);
+    // animación de entrada de la vista (se reinicia en cada cambio de pantalla)
+    view.classList.remove('enter'); void view.offsetWidth; view.classList.add('enter');
     window.scrollTo(0, 0);
     if (page === 'aprender') setTimeout(() => { const c = document.querySelector('.node.current'); c && c.scrollIntoView({ block: 'center', behavior: 'smooth' }); }, 60);
   }
@@ -283,7 +363,48 @@
     view.querySelectorAll('[data-practice]').forEach((b) => b.addEventListener('click', () => startPractice(UNITS.find((u) => u.id === b.dataset.practice))));
     view.querySelectorAll('[data-notes]').forEach((b) => b.addEventListener('click', () => { location.hash = '#/apuntes/' + b.dataset.notes; }));
     document.addEventListener('click', closePopover);
+    requestAnimationFrame(() => drawPathLines(view));
+    // Aparición de los nodos al entrar en pantalla (parten de un estado visible)
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver((entries) => entries.forEach((en) => {
+        if (en.isIntersecting) { en.target.classList.add('pop'); io.unobserve(en.target); }
+      }), { rootMargin: '0px 0px -40px 0px' });
+      view.querySelectorAll('.node').forEach((n) => io.observe(n));
+    }
   }
+  // Línea que une los niveles del camino: tramo de color si el nivel de origen está hecho
+  function drawPathLines(view) {
+    view.querySelectorAll('.path').forEach((path) => {
+      path.querySelector('.path-lines')?.remove();
+      const nodes = [...path.querySelectorAll('.node')];
+      if (nodes.length < 2) return;
+      const pr = path.getBoundingClientRect();
+      const pts = nodes.map((n) => {
+        const r = n.getBoundingClientRect();
+        return { x: r.left - pr.left + r.width / 2, y: r.top - pr.top + r.height / 2, done: n.classList.contains('done') };
+      });
+      const ns = 'http://www.w3.org/2000/svg';
+      const svg = document.createElementNS(ns, 'svg');
+      svg.setAttribute('class', 'path-lines');
+      svg.setAttribute('width', pr.width);
+      svg.setAttribute('height', pr.height);
+      svg.setAttribute('aria-hidden', 'true');
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], b = pts[i + 1];
+        const dy = (b.y - a.y) / 2;
+        const seg = document.createElementNS(ns, 'path');
+        seg.setAttribute('d', `M${a.x},${a.y} C${a.x},${a.y + dy} ${b.x},${b.y - dy} ${b.x},${b.y}`);
+        seg.setAttribute('class', a.done ? 'seg done' : 'seg');
+        svg.appendChild(seg);
+      }
+      path.prepend(svg);
+    });
+  }
+  let pathResizeT = null;
+  window.addEventListener('resize', () => {
+    clearTimeout(pathResizeT);
+    pathResizeT = setTimeout(() => { if (!S && /aprender|^#?$/.test(location.hash || '#')) drawPathLines(document.getElementById('view')); }, 150);
+  });
   function closePopover() { document.querySelectorAll('.popover').forEach((p) => p.remove()); }
   function openPopover(id) {
     closePopover();
@@ -369,6 +490,53 @@
     openLessonUI();
   }
 
+  // Sesiones de Entrenar: reto diario, Cazabugs, contrarreloj
+  function startCustom(items, { mode, title, costsHearts = false, extra = {} }) {
+    S = {
+      node: { id: mode, title, unit: UNITS[0] }, unit: null, mode, theory: [], theoryIdx: 0,
+      queue: makeQueue(items), total: items.length, solved: 0, firstOk: 0, firstSeen: new Set(), wrongRefs: new Set(),
+      combo: 0, maxCombo: 0, xp: 0, t0: Date.now(), costsHearts, ...extra,
+    };
+    const pk = [...new Set(items.flatMap((it) => (EX_INDEX.get(it.ref)?.node.packages) || []))];
+    if (pk.length && window.REngine) REngine.install(pk).catch(() => {});
+    openLessonUI();
+  }
+  const RUSH_SECONDS = 90;
+  function startRush() {
+    const pool = [];
+    for (const [ref, { ex, node }] of EX_INDEX) {
+      if (!['mc', 'tf', 'output'].includes(ex.type)) continue;
+      if (ex.type === 'output' && ex.answers[0].includes('\n')) continue;
+      if (node.packages && node.packages.length) continue;
+      if (node.type !== 'extra' && !state.freeMode && !isUnlocked(node)) continue;
+      pool.push({ ref, ex });
+    }
+    if (pool.length < 10) { toast('Avanza un poco más en el camino para desbloquear la contrarreloj'); return; }
+    startCustom(UI.shuffle(pool), { mode: 'rush', title: 'Contrarreloj', extra: { rushScore: 0, rushEnd: Date.now() + RUSH_SECONDS * 1000, noRetry: true } });
+    S.rushTimer = setInterval(rushTick, 250);
+  }
+  function rushTick() {
+    if (!S || S.mode !== 'rush') return;
+    const left = Math.max(0, Math.ceil((S.rushEnd - Date.now()) / 1000));
+    const h = lessonEl.querySelector('[data-hearts]');
+    if (h) h.innerHTML = `<span class="rush-clock ${left <= 10 ? 'hurry' : ''}">⏱ ${left}s</span> <span class="rush-score">✔ ${S.rushScore}</span>`;
+    const bar = lessonEl.querySelector('.ls-progress > div');
+    if (bar) { bar.style.width = (left / RUSH_SECONDS) * 100 + '%'; bar.style.background = left <= 10 ? 'var(--red)' : 'var(--orange)'; }
+    if (left <= 0 && !S.finished) { clearInterval(S.rushTimer); finishSession(); }
+  }
+  function rushAfterAnswer(ok, ex) {
+    if (ok) S.rushScore++;
+    else S.rushEnd -= 5000;
+    setFoot(`<div class="fb"><div class="fb-icon ${ok ? 'happy' : 'sad'}">${UI.mascot(ok ? 'wow' : 'sad')}</div><div style="min-width:0">
+      <h4>${ok ? '+1' : '−5 s'}</h4><div class="fb-text">${ok ? '' : 'Era: ' + solutionHtml(ex, {})}</div></div></div>`, ok ? 'ok' : 'bad');
+    setTimeout(() => {
+      if (!S || S.mode !== 'rush' || S.finished) return;
+      if (Date.now() >= S.rushEnd) { clearInterval(S.rushTimer); finishSession(); return; }
+      if (!S.queue.length) S.queue = makeQueue(UI.shuffle([...S.firstSeen].map((ref) => ({ ref, ex: EX_INDEX.get(ref).ex }))));
+      nextExercise();
+    }, ok ? 550 : 1600);
+  }
+
   function openLessonUI() {
     lessonEl.hidden = false;
     document.body.style.overflow = 'hidden';
@@ -385,6 +553,7 @@
     if (S.theory.length) showTheory(); else nextExercise();
   }
   function closeLessonUI() {
+    if (S) clearInterval(S.rushTimer);
     lessonEl.hidden = true;
     lessonEl.innerHTML = '';
     document.body.style.overflow = '';
@@ -402,7 +571,7 @@
     });
   }
   function updateTop() {
-    if (!S) return;
+    if (!S || S.mode === 'rush') return;
     const bar = lessonEl.querySelector('.ls-progress > div');
     const th = S.theory.length;
     let pct;
@@ -411,7 +580,13 @@
     bar.style.width = pct + '%';
     bar.style.background = S.phase === 'theory' ? 'var(--purple)' : '';
     const hEl = lessonEl.querySelector('[data-hearts]');
-    hEl.innerHTML = S.costsHearts && !state.infinite ? `❤️ ${state.hearts}` : S.mode === 'review' || S.mode === 'practice' ? '🎯' : '❤️ ∞';
+    hEl.innerHTML = S.costsHearts && !state.infinite ? `<span class="heart">❤️</span> ${state.hearts}` : S.costsHearts ? '❤️ ∞' : '🎯';
+  }
+  function heartBreak() {
+    const h = lessonEl.querySelector('[data-hearts]');
+    if (!h) return;
+    h.classList.remove('broke'); void h.offsetWidth; h.classList.add('broke');
+    UI.sound('heart');
   }
   function setBody(html, wide) {
     const inner = lessonEl.querySelector('.ls-inner');
@@ -439,7 +614,7 @@
       <h1 class="ls-title">${inline(card.title)}</h1>
       <div class="theory">${html}</div>
       <div class="theory-dots">${S.theory.map((_, i) => `<span class="${i <= S.theoryIdx ? 'on' : ''}"></span>`).join('')}</div>`);
-    UI.wireCodeBlocks(inner, blocks, { setup: card.setup || '', onCopy: copyToConsole });
+    UI.wireCodeBlocks(inner, blocks, { setup: card.setup || '', onCopy: copyToConsole, onTrace: countTrace });
     setFoot(`
       <button class="btn ghost" data-back ${S.theoryIdx === 0 ? 'style="visibility:hidden"' : ''}>Atrás</button>
       <div style="display:flex;gap:10px;align-items:center">
@@ -481,7 +656,7 @@
     const ctrl = (EX[ex.type] || EX.mc)(ex, { changed: () => refreshCheck() });
     const wide = ex.type === 'code';
     const inner = setBody(`
-      <div class="ls-kicker">${TYPE_LABEL[ex.type] || ''}${item.retry ? ' · <span style="color:var(--orange)">↻ repaso de error</span>' : ''}${S.combo >= 3 ? ` <span class="combo">🔥 ${S.combo} seguidas</span>` : ''}</div>
+      <div class="ls-kicker">${ex.bug ? '🐞 Encuentra y arregla el error' : TYPE_LABEL[ex.type] || ''}${item.retry ? ' · <span style="color:var(--orange)">↻ repaso de error</span>' : ''}${S.combo >= 3 ? ` <span class="combo">🔥 ${S.combo} seguidas</span>` : ''}</div>
       <div class="ex-host"></div>`, wide);
     inner.querySelector('.ex-host').appendChild(ctrl.el);
     S.ctrl = ctrl;
@@ -535,10 +710,13 @@
     S.firstSeen.add(item.ref);
     state.stats.answered++;
     S.queue.shift();
+    recordStat(item.ref, ok);
+    UI.vibrate(ok ? 'ok' : 'bad');
     if (ok) {
       UI.sound('ok');
       state.stats.correct++;
       if (ex.type === 'code') state.stats.codeOk++;
+      if (ex.bug) state.stats.bugsFixed++;
       S.solved++;
       S.combo++;
       S.maxCombo = Math.max(S.maxCombo, S.combo);
@@ -547,31 +725,54 @@
         state.mistakes[item.ref]--;
         if (state.mistakes[item.ref] <= 0) delete state.mistakes[item.ref];
       }
+      if ([3, 5, 10, 15, 20].includes(S.combo)) comboBurst(S.combo);
     } else {
       UI.sound('bad');
       S.combo = 0;
       S.wrongRefs.add(item.ref);
       state.mistakes[item.ref] = (state.mistakes[item.ref] || 0) + 1;
-      if (S.costsHearts && !state.infinite) state.hearts = Math.max(0, state.hearts - 1);
-      if (S.noRetry) S.solved++;
+      if (S.costsHearts && !state.infinite) { state.hearts = Math.max(0, state.hearts - 1); setTimeout(heartBreak, 30); }
+      if (S.noRetry || S.mode === 'rush') S.solved++;
       else S.queue.push({ ...item, retry: true });
     }
     save();
     updateTop();
     renderStats();
+    if (S.mode === 'rush') { rushAfterAnswer(ok, ex); return; }
     const solution = ok ? '' : solutionHtml(ex, res);
     const explain = ex.explain ? `<div style="margin-top:6px">${inline(ex.explain)}</div>` : '';
     const note = res.note ? `<div style="margin-top:6px">${inline(res.note)}</div>` : '';
+    const traceCode = ex.type === 'code' ? ex.solution : ex.code;
+    const canTrace = window.Trace && Trace.hasLoop(traceCode) && ['output', 'code', 'mc'].includes(ex.type);
     setFoot(`
-      <div class="fb"><div class="fb-icon">${ok ? '✅' : res.skipped ? '💡' : '❌'}</div>
+      <div class="fb"><div class="fb-icon ${ok ? 'happy' : 'sad'}">${UI.mascot(ok ? 'wow' : res.skipped ? 'think' : 'sad')}</div>
         <div style="min-width:0"><h4>${ok ? PRAISE[(Math.random() * PRAISE.length) | 0] : res.skipped ? 'Así se hace:' : 'Solución correcta:'}</h4>
         <div class="fb-text">${solution}${note}${explain}</div></div></div>
-      <button class="btn ${ok ? 'green' : 'red'}" data-continue>Continuar</button>`, ok ? 'ok' : 'bad');
+      <div class="fb-actions">
+        ${canTrace ? '<button class="btn ghost small" data-trace>🔬 Paso a paso</button>' : ''}
+        <button class="btn ${ok ? 'green' : 'red'}" data-continue>Continuar</button>
+      </div>`, ok ? 'ok' : 'bad');
+    const tb = lessonEl.querySelector('[data-trace]');
+    tb && (tb.onclick = () => { Trace.show(traceCode, { setup: ex.setup || '', title: ex.type === 'code' ? 'Paso a paso de la solución' : 'Paso a paso' }); countTrace(); });
     lessonEl.querySelector('[data-continue]').onclick = () => {
       if (S.costsHearts && !state.infinite && state.hearts <= 0) { outOfHearts(true); return; }
       nextExercise();
     };
     setTimeout(() => { const b = lessonEl.querySelector('[data-continue]'); b && b.focus(); }, 30);
+  }
+  function countTrace() {
+    state.stats.traces++;
+    const fresh = checkAchievements();
+    save();
+    fresh.forEach((a) => toast(`¡Logro: ${a.icon} ${a.name}!`));
+  }
+  function comboBurst(n) {
+    UI.sound('combo');
+    const b = document.createElement('div');
+    b.className = 'combo-burst';
+    b.textContent = `🔥 ${n} seguidas`;
+    lessonEl.appendChild(b);
+    setTimeout(() => b.remove(), 1400);
   }
   function solutionHtml(ex, res) {
     switch (ex.type) {
@@ -599,7 +800,7 @@
       <p class="muted">Recuperas 1 ❤️ cada 20 minutos${nh != null ? ` (la próxima en ${nh} min)` : ''}. Haz un repaso para ganar una vida ya, o activa las vidas infinitas para estudiar sin límites.</p>
       <div class="btns"><button class="btn green" data-review>🎯 Repasar y ganar ❤️</button><button class="btn ghost" data-inf>♾️ Activar vidas infinitas</button><button class="btn plain" data-exit>Salir</button></div>`,
     (m, close) => {
-      m.querySelector('[data-review]').onclick = () => { close(); if (midLesson) closeLessonUI(); location.hash = '#/repaso'; setTimeout(launchReview, 50); };
+      m.querySelector('[data-review]').onclick = () => { close(); if (midLesson) closeLessonUI(); location.hash = '#/entrenar'; setTimeout(launchReview, 50); };
       m.querySelector('[data-inf]').onclick = () => { close(); state.infinite = true; save(); renderStats(); if (midLesson && S) { updateTop(); nextExercise(); } };
       m.querySelector('[data-exit]').onclick = () => { close(); if (midLesson) closeLessonUI(); };
     });
@@ -607,13 +808,17 @@
 
   function finishSession() {
     S.finished = true;
+    clearInterval(S.rushTimer);
     document.onkeydown = null;
-    const acc = S.total ? S.firstOk / S.total : 1;
+    const acc = S.mode === 'rush' ? (S.firstSeen.size ? S.rushScore / S.firstSeen.size : 0) : S.total ? S.firstOk / S.total : 1;
     const stars = acc >= 0.999 ? 3 : acc >= 0.8 ? 2 : 1;
     const secs = Math.round((Date.now() - S.t0) / 1000);
     const fresh = [];
+    const goalBefore = (state.daily[today()] || 0) >= state.dailyGoal;
+    const levelBefore = level();
     let passed = true;
     let xp = S.xp;
+    let extraLine = '';
     if (S.mode === 'lesson') {
       xp += 10 + (acc >= 0.999 ? 5 : 0);
       const prev = state.lessons[S.node.id] || { stars: 0, times: 0 };
@@ -640,38 +845,85 @@
       xp += 5;
       state.stats.reviews++;
       if (!state.infinite) state.hearts = Math.min(MAX_HEARTS, state.hearts + 1);
-    } else if (S.mode === 'practice') {
+    } else if (S.mode === 'practice' || S.mode === 'bugs') {
       xp += 5;
+    } else if (S.mode === 'daily') {
+      const first = state.challenges[today()] == null;
+      state.challenges[today()] = Math.max(state.challenges[today()] || 0, S.firstOk);
+      if (first) { xp += 15; extraLine = '+15 XP de bonus por el reto del día 📅'; }
+    } else if (S.mode === 'rush') {
+      xp = S.rushScore * 2;
+      const best = S.rushScore > state.rushBest;
+      if (best) state.rushBest = S.rushScore;
+      extraLine = best ? `¡Nuevo récord personal: ${S.rushScore} aciertos! 🏅` : `Tu récord está en ${state.rushBest} aciertos.`;
     }
     S.xp = xp;
     addXp(xp);
     checkAchievements(fresh);
     save();
     UI.sound(passed ? 'done' : 'bad');
+    UI.vibrate(passed ? 'done' : 'bad');
     if (passed) UI.confetti();
-    lessonEl.querySelector('.ls-progress > div').style.width = '100%';
+    const bar = lessonEl.querySelector('.ls-progress > div');
+    bar.style.width = '100%';
     const mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, '0');
-    const title = !passed ? 'Casi… ¡necesitas un 80%!' : S.mode === 'review' ? '¡Repaso completado!' : S.mode === 'practice' ? '¡Práctica completada!' : S.mode === 'lesson' ? '¡Lección completada!' : '¡Examen superado!';
+    const titles = { review: '¡Repaso completado!', practice: '¡Práctica completada!', lesson: '¡Lección completada!', daily: '¡Reto del día superado!', bugs: '¡Bugs aplastados!', rush: '¡Tiempo!' };
+    const title = !passed ? 'Casi… ¡necesitas un 80%!' : titles[S.mode] || '¡Examen superado!';
+    const showStars = S.mode === 'lesson' || ((S.mode === 'boss' || S.mode === 'skip') && passed);
     setBody(`<div class="results">
-      <div class="m">${UI.mascot(passed ? 'wow' : 'sad')}</div>
+      <div class="m res-mascot">${UI.mascot(passed ? 'wow' : 'sad')}</div>
       <h2 style="${passed ? '' : 'color:var(--red)'}">${title}</h2>
-      ${S.mode === 'lesson' || ((S.mode === 'boss' || S.mode === 'skip') && passed) ? `<div class="big-stars">${'⭐'.repeat(stars)}<span style="opacity:.2">${'⭐'.repeat(3 - stars)}</span></div>` : ''}
+      ${showStars ? `<div class="big-stars">${[0, 1, 2].map((i) => `<span class="star ${i < stars ? 'on' : ''}" style="animation-delay:${0.25 + i * 0.22}s">⭐</span>`).join('')}</div>` : ''}
       <div class="res-cards">
-        <div class="res-card" style="--rc:var(--gold)"><div class="rt">XP total</div><div class="rv">⚡ ${xp}</div></div>
-        <div class="res-card" style="--rc:var(--green)"><div class="rt">Precisión</div><div class="rv">🎯 ${Math.round(acc * 100)}%</div></div>
-        <div class="res-card" style="--rc:var(--brand)"><div class="rt">Tiempo</div><div class="rv">⏱️ ${mm}:${ss}</div></div>
+        <div class="res-card" style="--rc:var(--gold)"><div class="rt">XP ganada</div><div class="rv">⚡ <span data-xp>0</span></div></div>
+        ${S.mode === 'rush'
+          ? `<div class="res-card" style="--rc:var(--green)"><div class="rt">Aciertos</div><div class="rv">✔ ${S.rushScore}</div></div>
+             <div class="res-card" style="--rc:var(--brand)"><div class="rt">Récord</div><div class="rv">🏅 ${state.rushBest}</div></div>`
+          : `<div class="res-card" style="--rc:var(--green)"><div class="rt">Precisión</div><div class="rv">🎯 ${Math.round(acc * 100)}%</div></div>
+             <div class="res-card" style="--rc:var(--brand)"><div class="rt">Tiempo</div><div class="rv">⏱️ ${mm}:${ss}</div></div>`}
         ${S.maxCombo >= 3 ? `<div class="res-card" style="--rc:var(--orange)"><div class="rt">Mejor racha</div><div class="rv">🔥 ${S.maxCombo}</div></div>` : ''}
       </div>
+      ${extraLine ? `<p class="res-extra">${extraLine}</p>` : ''}
       ${S.mode === 'review' && !state.infinite ? '<p class="muted" style="margin-top:16px">+1 ❤️ por repasar</p>' : ''}
-      ${S.wrongRefs.size && S.mode !== 'review' ? `<p class="muted" style="margin-top:16px">Has fallado ${S.wrongRefs.size} ejercicio(s): irán a tu sección de <b>Repaso</b> 🎯</p>` : ''}
+      ${S.wrongRefs.size && S.mode !== 'review' ? `<p class="muted" style="margin-top:16px">Has fallado ${S.wrongRefs.size} ejercicio(s): irán a tu <b>Repaso</b> en Entrenar 🎯</p>` : ''}
       ${fresh.map((a) => `<div class="badge-new"><span style="font-size:30px">${a.icon}</span><div style="text-align:left"><div>¡Logro desbloqueado: ${esc(a.name)}!</div><div class="small muted">${esc(a.desc)}</div></div></div>`).join('<br>')}
     </div>`);
-    const again = !passed;
-    setFoot(`<span></span><div style="display:flex;gap:10px">${again ? '<button class="btn ghost" data-retry>Reintentar</button>' : ''}<button class="btn green" data-continue>Continuar</button></div>`);
-    lessonEl.querySelector('[data-continue]').onclick = closeLessonUI;
-    const r = lessonEl.querySelector('[data-retry]');
+    UI.countUp(lessonEl.querySelector('[data-xp]'), xp, 1100);
+    const again = !passed || S.mode === 'rush';
+    setFoot(`<span></span><div style="display:flex;gap:10px">${again ? `<button class="btn ghost" data-retry>${S.mode === 'rush' ? 'Otra vez' : 'Reintentar'}</button>` : ''}<button class="btn green" data-continue>Continuar</button></div>`);
     const node = S.node, mode = S.mode, unit = S.unit;
-    r && (r.onclick = () => { mode === 'skip' ? startSkip(unit) : startLesson(node); });
+    // Celebraciones que se muestran al salir: racha del día, objetivo diario y subida de nivel
+    const celebrations = [];
+    if (xp > 0 && state.streakShown !== today() && streakAlive() > 0) { state.streakShown = today(); celebrations.push('streak'); }
+    if (!goalBefore && (state.daily[today()] || 0) >= state.dailyGoal) celebrations.push('goal');
+    if (level() > levelBefore) celebrations.push('level');
+    save();
+    lessonEl.querySelector('[data-continue]').onclick = () => { closeLessonUI(); celebrate(celebrations); };
+    const r = lessonEl.querySelector('[data-retry]');
+    r && (r.onclick = () => { mode === 'rush' ? startRush() : mode === 'skip' ? startSkip(unit) : startLesson(node); });
+  }
+  function celebrate(list) {
+    if (!list.length) return;
+    const kind = list.shift();
+    const next = () => celebrate(list);
+    if (kind === 'streak') {
+      const n = streakAlive();
+      const week = Array.from({ length: 7 }, (_, i) => { const d = new Date(); d.setDate(d.getDate() - (6 - i)); return { k: dayKey(d), l: 'LMXJVSD'[(d.getDay() + 6) % 7] }; });
+      UI.sound('level');
+      UI.modal(`<div class="streak-flame">🔥</div><h3>${n === 1 ? '¡Empiezas una racha!' : `¡${n} días de racha!`}</h3>
+        <p class="muted">${n === 1 ? 'Vuelve mañana para que crezca.' : 'Sigue así: un poco cada día es lo que más se nota en el parcial.'}</p>
+        <div class="streak-week">${week.map((d) => `<div class="${state.daily[d.k] ? 'on' : ''}"><span>${state.daily[d.k] ? '🔥' : '·'}</span><small>${d.l}</small></div>`).join('')}</div>
+        <div class="btns"><button class="btn green" data-ok>¡A por más!</button></div>`, (m, close) => { m.querySelector('[data-ok]').onclick = () => { close(); next(); }; });
+    } else if (kind === 'goal') {
+      UI.confetti();
+      UI.modal(`<div class="m">${UI.mascot('wow')}</div><h3>¡Objetivo diario cumplido!</h3><p class="muted">Has sumado ${state.daily[today()]} XP hoy (objetivo: ${state.dailyGoal}).</p>
+        <div class="btns"><button class="btn green" data-ok>Genial</button></div>`, (m, close) => { m.querySelector('[data-ok]').onclick = () => { close(); next(); }; });
+    } else if (kind === 'level') {
+      UI.sound('level');
+      UI.confetti();
+      UI.modal(`<div class="level-badge">${level()}</div><h3>¡Subes al nivel ${level()}!</h3><p class="muted">${state.xp} XP en total. Archi está orgulloso.</p>
+        <div class="btns"><button class="btn green" data-ok>Seguir</button></div>`, (m, close) => { m.querySelector('[data-ok]').onclick = () => { close(); next(); }; });
+    }
   }
 
   // ================= Tipos de ejercicio =================
@@ -880,6 +1132,7 @@
           <div class="code-tools">
             <button class="btn small ghost" data-run>▶ Ejecutar</button>
             ${ex.hint ? '<button class="btn small plain" data-hint>💡 Pista</button>' : ''}
+            <button class="btn small plain" data-trace title="Ver cómo cambian las variables en cada vuelta">🔬 Paso a paso</button>
             <button class="btn small plain" data-reset>↺ Reiniciar</button>
           </div>
           <div class="hint-box" hidden></div>
@@ -912,6 +1165,11 @@
     const hb = el.querySelector('[data-hint]');
     hb && (hb.onclick = () => { const b = el.querySelector('.hint-box'); b.hidden = false; b.innerHTML = `<div class="tip">💡 ${inline(ex.hint)}</div>`; });
     el.querySelector('[data-reset]').onclick = () => { ed.value = ex.starter || ''; ctx.changed(); };
+    el.querySelector('[data-trace]').onclick = () => {
+      if (!ed.value.trim()) { toast('Escribe primero algo de código'); return; }
+      Trace.show(ed.value, { setup: ex.setup || '', title: 'Paso a paso de tu código' });
+      countTrace();
+    };
     return {
       el,
       ready: () => ed.value.trim() !== '' && ed.value.trim() !== (ex.starter || '').trim(),
@@ -959,26 +1217,260 @@
     if (!items.length) { toast('Completa alguna lección primero para poder repasar'); return; }
     startReview(items);
   }
-  function viewReview(view) {
-    const mistakes = Object.keys(state.mistakes).filter((r) => EX_INDEX.has(r));
-    const byUnit = {};
-    mistakes.forEach((r) => { const u = EX_INDEX.get(r).node.unit; byUnit[u.id] = (byUnit[u.id] || 0) + 1; });
-    const anyDone = NODES.some(isDone);
-    view.innerHTML = `
-      <h1 class="page-title">Repaso 🎯</h1>
-      <p class="page-sub">Aquí vuelven los ejercicios que has fallado hasta que los domines. Cada repaso te da <b>+1 ❤️</b> y no gasta vidas.</p>
-      <div class="card" style="text-align:center">
-        <div style="width:120px;margin:0 auto">${UI.mascot(mistakes.length ? 'think' : 'happy')}</div>
-        <h3>${mistakes.length ? `Tienes ${mistakes.length} ejercicio(s) por reforzar` : anyDone ? '¡No tienes errores pendientes!' : 'Aún no hay nada que repasar'}</h3>
-        <p class="muted">${mistakes.length ? 'Se mezclan con ejercicios de lecciones que ya hiciste.' : anyDone ? 'Puedes hacer un repaso general de lo aprendido.' : 'Completa tu primera lección en el camino.'}</p>
-        <button class="btn green" data-start ${anyDone || mistakes.length ? '' : 'disabled'}>Empezar repaso</button>
+  // ================= Vista: Entrenar =================
+  const PARCIAL1_WORLDS = ['u2', 'u3', 'u4', 'u5c', 'u5', 'ex1'];
+  function seededRandom(seedText) {
+    let h = 1779033703 ^ seedText.length;
+    for (let i = 0; i < seedText.length; i++) { h = Math.imul(h ^ seedText.charCodeAt(i), 3432918353); h = (h << 13) | (h >>> 19); }
+    return () => { h = Math.imul(h ^ (h >>> 16), 2246822507); h = Math.imul(h ^ (h >>> 13), 3266489909); h ^= h >>> 16; return (h >>> 0) / 4294967296; };
+  }
+  function seededShuffle(arr, seed) {
+    const rnd = seededRandom(seed);
+    const a = arr.slice();
+    for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rnd() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; }
+    return a;
+  }
+  const reachedNodes = () => NODES.filter((n) => state.freeMode || isUnlocked(n));
+  function dailyItems() {
+    const pool = [];
+    reachedNodes().forEach((n) => exItems(n).forEach((it) => pool.push(it)));
+    const shuffled = seededShuffle(pool, 'reto-' + today());
+    const out = [];
+    let code = 0;
+    for (const it of shuffled) {
+      if (it.ex.type === 'code') { if (code >= 2) continue; code++; }
+      out.push(it);
+      if (out.length === 6) break;
+    }
+    return out;
+  }
+  function startDaily() {
+    const items = dailyItems();
+    if (items.length < 3) { toast('Completa alguna lección para desbloquear el reto diario'); return; }
+    startCustom(items, { mode: 'daily', title: 'Reto del día' });
+  }
+  function bugItems() {
+    const all = EXTRAS.flatMap((u) => u.nodes.flatMap((n) => exItems(n)));
+    const pending = all.filter((it) => !(state.exStats[it.ref] && state.exStats[it.ref][1] > 0));
+    const pick = UI.shuffle(pending.length >= 6 ? pending : all).slice(0, 6);
+    return { all, pending, pick };
+  }
+  function startBugs() {
+    const { pick } = bugItems();
+    startCustom(pick, { mode: 'bugs', title: 'Cazabugs' });
+  }
+  // ---------- Tarjetas (repetición espaciada) ----------
+  function cardPool() {
+    const open = new Set(UNITS.filter((u) => state.freeMode || u.nodes.some((n) => isUnlocked(n))).map((u) => u.id));
+    return CARDS.filter((c) => open.has(c.unit.id));
+  }
+  function dueCards() {
+    const t = today();
+    const pool = cardPool();
+    const due = pool.filter((c) => state.cards[c.id] && state.cards[c.id].due <= t);
+    const fresh = pool.filter((c) => !state.cards[c.id]);
+    return { due, fresh, pool };
+  }
+  function startCards() {
+    const { due, fresh } = dueCards();
+    const queue = [...UI.shuffle(due), ...fresh.slice(0, Math.max(0, 15 - due.length))].slice(0, 15);
+    if (!queue.length) { toast('¡No tienes tarjetas pendientes hoy! Vuelve mañana 🃏'); return; }
+    S = { mode: 'cards', cardQueue: queue, cardTotal: queue.length, cardDone: 0, cardKnown: 0, t0: Date.now(), theory: [] };
+    lessonEl.hidden = false;
+    document.body.style.overflow = 'hidden';
+    lessonEl.innerHTML = `
+      <div class="ls-top">
+        <button class="icon-btn" data-close aria-label="Salir">✕</button>
+        <div class="ls-progress"><div style="width:0%"></div></div>
+        <div class="ls-hearts">🃏</div>
       </div>
-      ${Object.keys(byUnit).length ? `<div class="card" style="margin-top:16px"><h3>Errores por mundo</h3>${UNITS.filter((u) => byUnit[u.id]).map((u) => `
-        <div class="exam-row"><div style="font-weight:800"><span style="color:${u.color}">●</span> ${esc(u.title)}</div><div class="days">${byUnit[u.id]}</div></div>`).join('')}</div>` : ''}
-      <div class="card" style="margin-top:16px"><h3>Practicar por mundo</h3><p class="muted small">12 ejercicios al azar del mundo, sin gastar vidas.</p>
-        <div class="seg">${UNITS.filter((u) => u.kind !== 'exam').map((u) => `<button data-pr="${u.id}">${u.num}. ${esc(u.title)}</button>`).join('')}</div></div>`;
-    view.querySelector('[data-start]').onclick = launchReview;
-    view.querySelectorAll('[data-pr]').forEach((b) => b.onclick = () => startPractice(UNITS.find((u) => u.id === b.dataset.pr)));
+      <div class="ls-body"><div class="ls-inner"></div></div>
+      <div class="ls-foot"><div class="ls-foot-inner"></div></div>`;
+    lessonEl.querySelector('[data-close]').onclick = closeLessonUI;
+    showCard();
+  }
+  function addDays(n) { const d = new Date(); d.setDate(d.getDate() + n); return dayKey(d); }
+  function showCard() {
+    lessonEl.querySelector('.ls-progress > div').style.width = (S.cardDone / S.cardTotal) * 100 + '%';
+    if (!S.cardQueue.length) { finishCards(); return; }
+    const c = S.cardQueue[0];
+    const box = state.cards[c.id] ? state.cards[c.id].box : 0;
+    const inner = setBody(`
+      <div class="ls-kicker">🃏 Tarjetas · ${box ? `caja ${box}` : 'nueva'}</div>
+      <p class="ls-q">¿Qué hace este código?</p>
+      <button class="flashcard" data-card style="--uc:${c.unit.color}" aria-label="Dar la vuelta a la tarjeta">
+        <span class="fc-inner">
+          <span class="fc-face fc-front"><span class="fc-world">${c.unit.icon || ''} ${esc(c.unit.short || c.unit.title)}</span><pre>${hl(c.front)}</pre><span class="fc-hint">Toca para ver la respuesta</span></span>
+          <span class="fc-face fc-back"><pre>${hl(c.front)}</pre><span class="fc-answer">${inline(c.back)}</span></span>
+        </span>
+      </button>`);
+    const card = inner.querySelector('[data-card]');
+    let flipped = false;
+    const flip = () => {
+      if (flipped) return;
+      flipped = true;
+      card.classList.add('flipped');
+      UI.sound('flip');
+      setFoot(`<button class="btn red" data-no>No la sabía</button><button class="btn green" data-yes>La sabía</button>`);
+      lessonEl.querySelector('[data-no]').onclick = () => rateCard(c, false);
+      lessonEl.querySelector('[data-yes]').onclick = () => rateCard(c, true);
+    };
+    card.onclick = flip;
+    setFoot(`<span class="small muted">Piensa la respuesta antes de girarla</span><button class="btn" data-flip>Girar</button>`);
+    lessonEl.querySelector('[data-flip]').onclick = flip;
+    document.onkeydown = (e) => {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); if (!flipped) flip(); else rateCard(c, true); }
+      else if (flipped && (e.key === '1' || e.key === 'ArrowLeft')) rateCard(c, false);
+      else if (flipped && (e.key === '2' || e.key === 'ArrowRight')) rateCard(c, true);
+    };
+  }
+  function rateCard(c, known) {
+    const prev = state.cards[c.id] || { box: 0 };
+    state.stats.cardsSeen++;
+    S.cardQueue.shift();
+    if (known) {
+      const box = Math.min(BOX_DAYS.length - 1, prev.box + 1);
+      state.cards[c.id] = { box, due: addDays(BOX_DAYS[box]) };
+      S.cardKnown++;
+      S.cardDone++;
+      UI.sound('ok');
+      UI.vibrate('ok');
+    } else {
+      state.cards[c.id] = { box: 1, due: addDays(1) };
+      S.cardQueue.push(c); // vuelve al final de esta sesión
+      UI.sound('bad');
+      UI.vibrate('bad');
+    }
+    save();
+    showCard();
+  }
+  function finishCards() {
+    S.finished = true;
+    document.onkeydown = null;
+    const xp = S.cardKnown;
+    const fresh = [];
+    addXp(xp);
+    checkAchievements(fresh);
+    save();
+    UI.sound('done');
+    UI.confetti();
+    const { due } = dueCards();
+    setBody(`<div class="results">
+      <div class="m res-mascot">${UI.mascot('wow')}</div>
+      <h2>¡Tarjetas repasadas!</h2>
+      <div class="res-cards">
+        <div class="res-card" style="--rc:var(--gold)"><div class="rt">XP ganada</div><div class="rv">⚡ <span data-xp>0</span></div></div>
+        <div class="res-card" style="--rc:var(--purple)"><div class="rt">Tarjetas</div><div class="rv">🃏 ${S.cardTotal}</div></div>
+      </div>
+      <p class="res-extra">${due.length ? `Te quedan ${due.length} para hoy.` : 'Las tarjetas que sabías volverán dentro de unos días; las que no, mañana.'}</p>
+      ${fresh.map((a) => `<div class="badge-new"><span style="font-size:30px">${a.icon}</span><div style="text-align:left"><div>¡Logro desbloqueado: ${esc(a.name)}!</div><div class="small muted">${esc(a.desc)}</div></div></div>`).join('<br>')}
+    </div>`);
+    UI.countUp(lessonEl.querySelector('[data-xp]'), xp, 900);
+    setFoot(`<span></span><button class="btn green" data-continue>Continuar</button>`);
+    lessonEl.querySelector('[data-continue]').onclick = closeLessonUI;
+  }
+  // ---------- Plan hasta el Parcial 1 ----------
+  function parcialPlan() {
+    const exam = EXAMS.find((e) => e.name.startsWith('Parcial 1'));
+    const days = exam ? daysUntil(exam.date) : 0;
+    const nodes = NODES.filter((n) => PARCIAL1_WORLDS.includes(n.unit.id));
+    const left = nodes.filter((n) => !isDone(n));
+    const studyDays = Math.max(1, days - 1); // el último día, repaso y simulacro
+    const perDay = Math.ceil(left.length / studyDays);
+    const schedule = [];
+    for (let d = 0; d < Math.min(studyDays, 5) && d * perDay < left.length; d++) {
+      const date = new Date(); date.setDate(date.getDate() + d);
+      schedule.push({ label: d === 0 ? 'Hoy' : d === 1 ? 'Mañana' : date.toLocaleDateString('es-ES', { weekday: 'long', day: 'numeric' }), nodes: left.slice(d * perDay, (d + 1) * perDay) });
+    }
+    return { exam, days, total: nodes.length, done: nodes.length - left.length, left, perDay, schedule };
+  }
+
+  function viewTrain(view) {
+    const plan = parcialPlan();
+    const mistakes = Object.keys(state.mistakes).filter((r) => EX_INDEX.has(r));
+    const dailyDone = state.challenges[today()] != null;
+    const { due, fresh } = dueCards();
+    const bugs = bugItems();
+    const masteryRows = UNITS.filter((u) => u.kind !== 'exam').map((u) => ({ u, m: unitMastery(u) }));
+    const weak = masteryRows.filter((r) => r.m.seen >= 5).sort((a, b) => a.m.acc - b.m.acc)[0];
+    const nextP1 = plan.left.find((n) => isUnlocked(n)) || plan.left[0];
+    const weeks = 5;
+    const start = new Date(); start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weeks - 1) * 7); // lunes de hace 4 semanas
+    const cells = Array.from({ length: weeks * 7 }, (_, i) => { const d = new Date(start); d.setDate(start.getDate() + i); const k = dayKey(d); return { k, xp: state.daily[k] || 0, future: k > today() }; });
+    const maxXp = Math.max(30, ...cells.map((c) => c.xp));
+
+    view.innerHTML = `
+      <h1 class="page-title">Entrenar 🏋️</h1>
+      <p class="page-sub">Modos para practicar lo que ya has visto, repasar tus fallos y llegar al parcial con todo dominado.</p>
+
+      ${plan.exam && plan.days >= 0 ? `<section class="plan-card">
+        <div class="plan-top">
+          <div><div class="plan-kicker">Plan hasta el ${esc(plan.exam.name.split(' ·')[0])}</div>
+            <div class="plan-days"><b>${plan.days}</b> día${plan.days === 1 ? '' : 's'}</div>
+            <div class="small">${plan.done} de ${plan.total} niveles de los Temas 2–3 hechos</div></div>
+          <div class="plan-ring" style="--p:${plan.total ? plan.done / plan.total : 0}"><span>${plan.total ? Math.round((plan.done / plan.total) * 100) : 0}%</span></div>
+        </div>
+        ${plan.left.length ? `<div class="plan-goal">Para llegar con todo: <b>${plan.perDay} nivel${plan.perDay === 1 ? '' : 'es'} al día</b> y el último día, el simulacro.</div>
+        <div class="plan-days-list">${plan.schedule.map((d) => `<div class="plan-day"><b>${esc(d.label)}</b><span>${d.nodes.map((n) => `${n.unit.icon || ''} ${esc(n.title)}`).join(' · ')}</span></div>`).join('')}</div>
+        ${nextP1 ? `<button class="btn" data-next-p1>▶ Siguiente: ${esc(nextP1.title)}</button>` : ''}`
+        : '<div class="plan-goal">¡Tienes hechos todos los niveles del Parcial 1! Repite el simulacro y entrena tus fallos.</div>'}
+      </section>` : ''}
+
+      <div class="train-grid">
+        <button class="train-tile" data-mode="daily" style="--tc:var(--green)">
+          <span class="tt-icon">📅</span><span class="tt-name">Reto del día</span>
+          <span class="tt-desc">6 ejercicios nuevos cada día de todo lo que has desbloqueado. +15 XP extra.</span>
+          <span class="tt-chip">${dailyDone ? `✓ Hecho hoy · ${state.challenges[today()]}/6` : 'Pendiente hoy'}</span></button>
+        <button class="train-tile" data-mode="rush" style="--tc:var(--orange)">
+          <span class="tt-icon">⏱️</span><span class="tt-name">Contrarreloj</span>
+          <span class="tt-desc">${RUSH_SECONDS} segundos para acertar todo lo que puedas. Fallar resta 5 s.</span>
+          <span class="tt-chip">Récord: ${state.rushBest}</span></button>
+        <button class="train-tile" data-mode="cards" style="--tc:var(--purple)">
+          <span class="tt-icon">🃏</span><span class="tt-name">Tarjetas</span>
+          <span class="tt-desc">Memoriza funciones con repetición espaciada: vuelven justo antes de olvidarlas.</span>
+          <span class="tt-chip">${due.length ? `${due.length} para repasar` : fresh.length ? `${Math.min(15, fresh.length)} nuevas` : 'Al día ✓'}</span></button>
+        <button class="train-tile" data-mode="bugs" style="--tc:var(--red)">
+          <span class="tt-icon">🐞</span><span class="tt-name">Cazabugs</span>
+          <span class="tt-desc">Código con errores típicos de examen: encuentra el fallo y arréglalo.</span>
+          <span class="tt-chip">${bugs.all.length - bugs.pending.length}/${bugs.all.length} arreglados</span></button>
+        <button class="train-tile" data-mode="review" style="--tc:var(--brand)">
+          <span class="tt-icon">🎯</span><span class="tt-name">Repaso de fallos</span>
+          <span class="tt-desc">Vuelven los ejercicios que fallaste hasta que los domines. +1 ❤️.</span>
+          <span class="tt-chip">${mistakes.length ? `${mistakes.length} pendientes` : 'Sin fallos pendientes'}</span></button>
+        <div class="train-tile static" style="--tc:#7c4dff">
+          <span class="tt-icon">🎓</span><span class="tt-name">Simulacros</span>
+          <span class="tt-desc">Exámenes completos, cuando quieras.</span>
+          <span class="tt-row">${['ex1-a', 'ex1-b', 'ex2-a', 'ex2-b'].map((id) => { const n = NODES.find((x) => x.id === id); return n ? `<button class="chip-btn" data-exam="${id}">${id.startsWith('ex1') ? 'P1' : 'Final'} · ${esc(n.title.replace('Parte ', ''))}${isDone(n) ? ' ✓' : ''}</button>` : ''; }).join('')}</span>
+        </div>
+      </div>
+
+      <section class="card" style="margin-top:18px">
+        <h3>Dominio por mundo</h3>
+        ${weak ? `<div class="weak">Tu punto débil ahora mismo: <b>${weak.u.icon} ${esc(weak.u.title)}</b> (${Math.round(weak.m.acc * 100)}% de aciertos). <button class="chip-btn" data-practice="${weak.u.id}">Practicar</button></div>` : '<p class="muted small">Responde algunos ejercicios y aquí verás qué mundos dominas y cuáles necesitan repaso.</p>'}
+        <div class="mastery">${masteryRows.map(({ u, m }) => `
+          <div class="ms-row" style="--uc:${u.color}">
+            <span class="ms-name">${u.icon || ''} ${esc(u.short || u.title)}</span>
+            <span class="ms-bar" title="Niveles completados"><span style="width:${(m.done / m.total) * 100}%"></span></span>
+            <span class="ms-acc ${m.acc == null ? 'faint' : m.acc >= 0.85 ? 'good' : m.acc >= 0.6 ? 'mid' : 'bad'}">${m.acc == null ? '—' : Math.round(m.acc * 100) + '%'}</span>
+            <button class="chip-btn" data-practice="${u.id}" aria-label="Practicar ${esc(u.title)}">🏋️</button>
+          </div>`).join('')}</div>
+        <p class="small faint">Barra: niveles completados · %: aciertos en todas tus respuestas de ese mundo.</p>
+      </section>
+
+      <section class="card" style="margin-top:18px">
+        <h3>Tu actividad</h3>
+        <div class="heat">${cells.map((c) => `<span class="${c.future ? 'future' : ''}" title="${c.k}: ${c.xp} XP" style="--a:${c.xp ? 0.25 + 0.75 * Math.min(1, c.xp / maxXp) : 0}"></span>`).join('')}</div>
+        <div class="small faint">Últimas ${weeks} semanas · cada cuadro es un día (más intenso = más XP).</div>
+      </section>`;
+
+    view.querySelectorAll('[data-mode]').forEach((b) => b.onclick = () => ({ daily: startDaily, rush: startRush, cards: startCards, bugs: startBugs, review: launchReview }[b.dataset.mode])());
+    view.querySelectorAll('[data-practice]').forEach((b) => b.onclick = () => startPractice(UNITS.find((u) => u.id === b.dataset.practice)));
+    view.querySelectorAll('[data-exam]').forEach((b) => b.onclick = () => startLesson(NODES.find((n) => n.id === b.dataset.exam)));
+    const np = view.querySelector('[data-next-p1]');
+    np && (np.onclick = () => {
+      if (!isUnlocked(nextP1)) { toast('Ese nivel aún está bloqueado: completa los anteriores o activa el modo libre en Perfil'); return; }
+      startLesson(nextP1);
+    });
   }
 
   // ================= Vista: apuntes =================
@@ -1013,7 +1505,7 @@
       html += '</div></div>';
     });
     notesBox.innerHTML = `<div style="margin-top:24px">${html || '<p class="muted">Esta sección es de examen: no tiene teoría propia. Repasa los mundos anteriores.</p>'}</div>`;
-    UI.wireCodeBlocks(notesBox, allBlocks, { onCopy: copyToConsole });
+    UI.wireCodeBlocks(notesBox, allBlocks, { onCopy: copyToConsole, onTrace: countTrace });
   }
 
   // ================= Vista: consola tipo RStudio =================
@@ -1043,6 +1535,7 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
           <div class="ide-head"><span>📝 Script.R</span><div class="tools">
             <button class="cb-run alt" data-runline title="Ctrl+Enter">▶ Run</button>
             <button class="cb-run" data-source title="Ctrl+Shift+Enter">⏩ Source</button>
+            <button class="cb-run alt" data-trace title="Ejecuta el script en limpio y muestra cada vuelta de los bucles">🔬 Paso a paso</button>
             <select class="cb-run alt" data-snip style="padding:4px 6px"><option value="">Ejemplos…</option>
               <option value="vec">Vectores</option><option value="mat">Matrices</option><option value="df">Data frames</option><option value="loop">Bucles</option><option value="fun">Funciones</option><option value="plot">Gráficos</option><option value="mtcars">Dataset mtcars</option></select>
           </div></div>
@@ -1123,6 +1616,12 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
       ta.focus();
     };
     view.querySelector('[data-source]').onclick = () => exec(ed.value);
+    view.querySelector('[data-trace]').onclick = () => {
+      const ta = ed.ta;
+      const sel = ta.value.slice(ta.selectionStart, ta.selectionEnd);
+      Trace.show(sel.trim() ? sel : ed.value, { title: sel.trim() ? 'Paso a paso de la selección' : 'Paso a paso del script' });
+      countTrace();
+    };
     view.querySelector('[data-clearcon]').onclick = () => { con.innerHTML = ''; };
     view.querySelector('[data-clearplots]').onclick = () => { plots.innerHTML = ''; };
     view.querySelector('[data-clearenv]').onclick = async () => { if (window.REngine) { await REngine.resetConsole(); refreshEnv(); UI.appendConsole(con, [{ kind: 'echo', text: '> rm(list = ls())' }]); } };
@@ -1199,6 +1698,8 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
         <div class="setting"><div><div class="s-t">Vidas infinitas ♾️</div><div class="s-d">Modo estudio: los fallos no quitan vidas</div></div><label class="switch"><input type="checkbox" data-set="infinite" ${state.infinite ? 'checked' : ''}><span></span></label></div>
         <div class="setting"><div><div class="s-t">Modo libre 🔓</div><div class="s-d">Desbloquea todas las lecciones para ir directo a lo que necesites</div></div><label class="switch"><input type="checkbox" data-set="freeMode" ${state.freeMode ? 'checked' : ''}><span></span></label></div>
         <div class="setting"><div><div class="s-t">Sonido 🔊</div><div class="s-d">Efectos al acertar y fallar</div></div><label class="switch"><input type="checkbox" data-set="sound" ${state.sound ? 'checked' : ''}><span></span></label></div>
+        <div class="setting"><div><div class="s-t">Vibración 📳</div><div class="s-d">Vibra al acertar y fallar (en móviles Android)</div></div><label class="switch"><input type="checkbox" data-set="haptics" ${state.haptics ? 'checked' : ''}><span></span></label></div>
+        ${canOfferInstall() ? `<div class="setting"><div><div class="s-t">Instalar la app 📲</div><div class="s-d">Icono en tu pantalla de inicio y funciona sin conexión</div></div><button class="btn small" data-install2>Instalar</button></div>` : ''}
         <div class="setting"><div><div class="s-t">Tema</div><div class="s-d">Claro, oscuro o el del sistema</div></div>
           <div class="seg" data-theme>${[['auto', 'Auto'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button class="${state.theme === k ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</div></div>
       </div>
@@ -1215,8 +1716,10 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
     view.querySelectorAll('[data-g]').forEach((b) => b.onclick = () => { state.dailyGoal = +b.dataset.g; save(); route(); });
     view.querySelectorAll('[data-t]').forEach((b) => b.onclick = () => { state.theme = b.dataset.t; save(); applyTheme(); route(); });
     view.querySelectorAll('[data-set]').forEach((inp) => inp.onchange = () => {
-      state[inp.dataset.set] = inp.checked; UI.muted = !state.sound; save(); renderStats(); renderRightbar();
+      state[inp.dataset.set] = inp.checked; UI.muted = !state.sound; UI.noHaptics = !state.haptics; save(); renderStats(); renderRightbar();
     });
+    const ib2 = view.querySelector('[data-install2]');
+    ib2 && (ib2.onclick = doInstall);
     view.querySelector('[data-export]').onclick = () => {
       const blob = new Blob([JSON.stringify(state, null, 1)], { type: 'application/json' });
       const a = document.createElement('a');
@@ -1287,7 +1790,10 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
   // ================= Arranque =================
   applyTheme();
   UI.muted = !state.sound;
+  UI.noHaptics = !state.haptics;
   document.querySelectorAll('[data-mascot="mini"]').forEach((e) => { e.innerHTML = UI.mascotMini(); });
+  document.querySelectorAll('[data-mascot="big"]').forEach((e) => { e.innerHTML = UI.mascot('happy'); });
+  document.getElementById('tb-sound').onclick = toggleSound;
   window.addEventListener('hashchange', () => { if (!S) route(); });
   const onR = () => { if (window.REngine) REngine.onStatus(() => { if (!S && !/consola/.test(location.hash)) renderRightbar(); }); };
   if (window.REngine) onR(); else window.addEventListener('rengine', onR, { once: true });
@@ -1296,6 +1802,13 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
     const go = () => selfTest();
     if (window.REngine) go(); else window.addEventListener('rengine', go, { once: true });
   } else route();
+  // Pantalla de carga: se desvanece en cuanto la primera vista está pintada
+  setTimeout(() => {
+    const sp = document.getElementById('splash');
+    if (!sp) return;
+    sp.classList.add('out');
+    setTimeout(() => sp.remove(), 450);
+  }, 650);
   // Depuración: RA.try('u1l3:7') abre un ejercicio concreto en modo práctica
   window.RA = {
     state: () => state, NODES, EX_INDEX,
