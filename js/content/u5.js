@@ -1,10 +1,10 @@
-// Unidad 5 — Tema 3: estructuras de control (condicionales y bucles)
+// Tema 3: estructuras de control — Mundo Condicionales y Mundo Bucles
 (function () {
   const R = String.raw;
   const REDES = R`redes_sociales <- c("Instagram", "Strava", "Linkedin", "Tiktok", "Whatsapp")`;
   RA_UNITS.push({
-    id: 'u5', num: 5, tema: 'Tema 3', short: 'Control de flujo', title: 'Condicionales y bucles', color: '#ff4b4b',
-    desc: R`if, else, for, while, repeat, break y next: haz que tu código tome decisiones y repita tareas. ¡Lo más preguntado en el parcial!`,
+    id: 'u5c', tema: 'Tema 3', icon: '🔀', short: 'Condicionales', title: 'Condicionales', color: '#ff4b4b',
+    desc: R`if, else if y else: haz que tu código tome decisiones. Condiciones compuestas con & y |, como el sistema de becas del simulacro.`,
     cheat: [
       [R`==  !=  >  <  >=  <=`, R`Comparaciones: devuelven TRUE o FALSE.`],
       [R`&  |  !`, R`Y, O, NO (vectorizados).`],
@@ -12,6 +12,71 @@
       [R`if (cond) { ... }`, R`Ejecuta el bloque solo si la condición es TRUE.`],
       [R`if (cond) { ... } else { ... }`, R`Dos caminos.`],
       [R`if (c1) { } else if (c2) { } else { }`, R`Varios casos; se ejecuta el **primero** que se cumpla.`],
+      [R`n %% 2 == 0`, R`¿Es par? («%%» es el resto de la división).`],
+      [R`x %in% c("a", "b")`, R`¿Está x en la lista?`],
+    ],
+    lessons: [], // al final del archivo se mueven aquí u5l1–u5l3
+    boss: {
+      id: 'u5cb', title: 'Examen Condicionales', icon: '🏰', desc: R`Decisiones con if, else if y else.`,
+      exercises: [
+        { type: 'output', q: R`¿Qué imprime?`, code: R`temp <- 18
+if (temp > 25) {
+  print("calor")
+} else if (temp > 15) {
+  print("templado")
+} else {
+  print("frío")
+}`, answers: [R`[1] "templado"`] },
+        { type: 'output', q: R`¿Qué imprime?`, code: R`x <- 12
+if (x %% 4 == 0 & x %% 6 == 0) {
+  print("A")
+} else if (x %% 4 == 0) {
+  print("B")
+} else {
+  print("C")
+}`, answers: [R`[1] "A"`] },
+        { type: 'output', q: R`¿Qué muestra R?`, code: R`v <- c(2, 9, 4)
+r <- "nada"
+if (any(v > 8)) r <- "alguno grande"
+if (all(v > 1)) r <- paste(r, "y todos > 1")
+r`, answers: [R`[1] "alguno grande y todos > 1"`], explain: R`«any» es TRUE si al menos uno cumple; «all», si cumplen todos. Sirven para usar un vector en un «if».` },
+        { type: 'output', q: R`Becas del simulacro: ¿qué imprime?`, code: R`nota <- 8.6; creditos <- 44; renta <- 32000
+if (nota >= 8 & creditos >= 54 & renta < 25000) {
+  print("Beca completa")
+} else if ((nota >= 7 & creditos >= 48 & renta < 30000) |
+           (nota >= 8.5 & creditos >= 42)) {
+  print("Beca parcial")
+} else if (creditos >= 30 & (nota >= 6 | renta < 20000)) {
+  print("Beca de matrícula")
+} else {
+  print("Sin beca")
+}`, answers: [R`[1] "Beca parcial"`], explain: R`El primer paréntesis es FALSE, pero el segundo (nota ≥ 8.5 y créditos ≥ 42) es TRUE.` },
+        { type: 'mc', q: R`¿Por qué este código da error en R moderno?`, code: R`notas <- c(4, 7)
+if (notas >= 5) print("aprobado")`, options: [R`La condición tiene 2 valores y el if solo admite uno`, R`Falta el else`, R`print no se puede usar en un if`, R`«>=» no existe en R`], answer: 0 },
+        { type: 'code', q: R`Con «imc» cargado, guarda en «categoria»: "Bajo peso" si es menor que 18.5, "Normal" si es menor que 25, "Sobrepeso" si es menor que 30 y "Obesidad" en otro caso.`, setup: R`imc <- 27.3`, check: R`identical(categoria, "Sobrepeso")`, solution: R`if (imc < 18.5) {
+  categoria <- "Bajo peso"
+} else if (imc < 25) {
+  categoria <- "Normal"
+} else if (imc < 30) {
+  categoria <- "Sobrepeso"
+} else {
+  categoria <- "Obesidad"
+}`, hint: R`Como se evalúan en orden, basta con poner el límite superior de cada tramo.` },
+        { type: 'code', q: R`Con «dia» y «hora» cargados, guarda en «abierto» TRUE si la tienda está abierta: de lunes a viernes de 9 a 20 (sin incluir las 20) y sábados de 10 a 14. Domingo cerrado.`, setup: R`dia <- "sábado"
+hora <- 12`, check: R`isTRUE(abierto)`, solution: R`if (dia %in% c("lunes", "martes", "miércoles", "jueves", "viernes")) {
+  abierto <- hora >= 9 & hora < 20
+} else if (dia == "sábado") {
+  abierto <- hora >= 10 & hora < 14
+} else {
+  abierto <- FALSE
+}`, hint: R`Usa «%in%» para los días laborables.` },
+      ],
+    },
+  });
+  RA_UNITS.push({
+    id: 'u5', tema: 'Tema 3', icon: '🔁', short: 'Bucles', title: 'Bucles', color: '#58cc02',
+    desc: R`for, while, repeat, break y next: repite tareas, acumula, cuenta y traza código como en el examen. ¡Lo más preguntado en el parcial!`,
+    cheat: [
       [R`for (x in vector) { ... }`, R`Repite una vez por cada elemento.`],
       [R`for (i in 1:n) { ... }`, R`Repite n veces con un contador i.`],
       [R`for (i in seq_along(v)) v[i]`, R`Recorrer por posición (seguro aunque v esté vacío).`],
@@ -931,7 +996,7 @@ total`, answers: [R`[1] 12`], explain: R`Solo cuentan "luna" (4) y "estrella" (8
       },
     ],
     boss: {
-      id: 'u5b', title: 'Examen Unidad 5', icon: '🏰', desc: R`Condicionales y bucles nivel parcial.`,
+      id: 'u5b', title: 'Jefe del mundo', icon: '🏰', desc: R`Condicionales y bucles nivel parcial.`,
       exercises: [
         { type: 'output', q: R`¿Qué imprime?`, code: R`total <- 0
 for (i in 1:10) {
@@ -999,4 +1064,8 @@ for (n in 2:50) {
       ],
     },
   });
+  // Las tres primeras lecciones (condiciones, if/else, else if) forman el mundo Condicionales
+  const condicionales = RA_UNITS.find((u) => u.id === 'u5c');
+  const bucles = RA_UNITS.find((u) => u.id === 'u5');
+  condicionales.lessons = bucles.lessons.splice(0, 3);
 })();

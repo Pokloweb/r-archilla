@@ -35,7 +35,7 @@
     { id: 'streak7', icon: '🌋', name: 'Semana en llamas', desc: '7 días seguidos' },
     { id: 'code10', icon: '⌨️', name: 'Picacódigo', desc: '10 ejercicios de código correctos' },
     { id: 'code50', icon: '🧠', name: 'Cerebro R', desc: '50 ejercicios de código correctos' },
-    { id: 'boss', icon: '🏆', name: 'Jefe derrotado', desc: 'Supera un examen de unidad' },
+    { id: 'boss', icon: '🏆', name: 'Jefe derrotado', desc: 'Vence al jefe de un mundo' },
     { id: 'parcial', icon: '🎓', name: 'Listo para el parcial', desc: 'Aprueba el Simulacro Parcial 1' },
     { id: 'console', icon: '💻', name: 'Explorador', desc: 'Ejecuta 20 veces código en la Consola R' },
     { id: 'review', icon: '🎯', name: 'Constante', desc: 'Completa 5 repasos' },
@@ -125,8 +125,10 @@
   // Nodo = lección o examen de unidad. Secuencia global lineal.
   const NODES = [];
   const EX_INDEX = new Map(); // ref -> { ex, node }
+  let worldCount = 0;
   UNITS.forEach((u, ui) => {
     u.index = ui;
+    if (u.kind !== 'exam') u.num = ++worldCount;
     u.nodes = [];
     (u.lessons || []).forEach((l) => {
       const node = { ...l, unit: u, type: u.kind === 'exam' ? 'exam' : 'lesson' };
@@ -220,14 +222,30 @@
   const OFFSETS = [0, 52, 84, 52, 0, -52, -84, -52];
   function viewPath(view) {
     const cur = currentNode();
-    let html = '';
+    let html = `<section class="world-map" aria-label="Mapa de mundos">
+      <div class="wm-head"><h1 class="page-title">Mapa de mundos</h1><span class="muted small">${NODES.filter(isDone).length} / ${NODES.length} niveles</span></div>
+      <div class="wm-grid">${UNITS.map((u) => {
+        const done = u.nodes.filter(isDone).length;
+        const total = u.nodes.length;
+        const open = isUnlocked(u.nodes[0]);
+        const complete = done === total;
+        const here = cur && cur.unit === u;
+        return `<button class="wm-tile ${open ? '' : 'locked'} ${here ? 'here' : ''} ${u.kind === 'exam' ? 'exam' : ''}" style="--uc:${u.color}" data-world="${u.id}">
+          <span class="wm-icon">${open ? u.icon || '⭐' : '🔒'}</span>
+          <span class="wm-kicker">${u.kind === 'exam' ? 'Examen' : 'Mundo ' + u.num}</span>
+          <span class="wm-name">${esc(u.short || u.title)}</span>
+          <span class="wm-bar"><span style="width:${(done / total) * 100}%"></span></span>
+          <span class="wm-count">${complete ? '✓ Completado' : here ? '▶ Estás aquí' : `${done}/${total}`}</span>
+        </button>`;
+      }).join('')}</div>
+    </section>`;
     for (const u of UNITS) {
       const unitStarted = u.nodes.some(isDone);
-      html += `<section class="unit" style="--uc:${u.color}">
+      html += `<section class="unit" id="w-${u.id}" style="--uc:${u.color}">
         <div class="unit-banner">
-          <div><div class="ub-kicker">${u.kind === 'exam' ? 'Examen' : 'Unidad ' + u.num} · ${esc(u.tema)}</div><h2>${esc(u.title)}</h2></div>
+          <div class="ub-main"><span class="ub-icon">${u.icon || '⭐'}</span><div><div class="ub-kicker">${u.kind === 'exam' ? 'Examen' : 'Mundo ' + u.num} · ${esc(u.tema)}</div><h2>${esc(u.title)}</h2></div></div>
           <div class="ub-actions">
-            ${u.kind !== 'exam' ? `<button class="ub-btn" data-practice="${u.id}" title="Practicar ejercicios de esta unidad">🏋️<span class="hide-sm">Practicar</span></button>` : ''}
+            ${u.kind !== 'exam' ? `<button class="ub-btn" data-practice="${u.id}" title="Practicar ejercicios de este mundo">🏋️<span class="hide-sm">Practicar</span></button>` : ''}
             <button class="ub-btn" data-notes="${u.id}" title="Apuntes y chuleta">📒</button>
           </div>
         </div>
@@ -257,6 +275,10 @@
     html += `<div class="empty-state"><div class="m">${UI.mascot('wow')}</div><p class="muted">Termina el camino y serás un <b>genio de R</b>. Contenido basado en el temario de Canvas (G236).</p></div>`;
     view.innerHTML = html;
 
+    view.querySelectorAll('[data-world]').forEach((b) => b.addEventListener('click', () => {
+      const sec = document.getElementById('w-' + b.dataset.world);
+      sec && sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }));
     view.querySelectorAll('[data-node]').forEach((b) => b.addEventListener('click', (e) => { e.stopPropagation(); openPopover(b.dataset.node); }));
     view.querySelectorAll('[data-practice]').forEach((b) => b.addEventListener('click', () => startPractice(UNITS.find((u) => u.id === b.dataset.practice))));
     view.querySelectorAll('[data-notes]').forEach((b) => b.addEventListener('click', () => { location.hash = '#/apuntes/' + b.dataset.notes; }));
@@ -274,7 +296,7 @@
     pv.className = 'popover' + (unlocked ? '' : ' locked');
     pv.style.setProperty('--nc', n.unit.color);
     const firstOfUnit = n.unit.nodes[0] === n;
-    const kind = n.type === 'lesson' ? `Lección · ${(n.theory || []).length} fichas de teoría · ${nEx} ejercicios` : `${n.type === 'exam' ? 'Simulacro' : 'Examen de unidad'} · ${nEx} preguntas · aprueba con 80%`;
+    const kind = n.type === 'lesson' ? `Lección · ${(n.theory || []).length} fichas de teoría · ${nEx} ejercicios` : `${n.type === 'exam' ? 'Simulacro' : 'Jefe del mundo'} · ${nEx} preguntas · aprueba con 80%`;
     pv.innerHTML = `<h4>${esc(n.title)}</h4><p>${inline(n.desc || kind)}<br><span style="opacity:.8;font-size:13px">${kind}</span></p>` +
       (unlocked
         ? `<button class="btn" data-go>${done ? 'Repetir +XP' : n.type === 'lesson' ? 'Empezar +XP' : '¡Al examen!'}</button>`
@@ -607,7 +629,7 @@
         unlockAch('boss', fresh);
         if (S.node.unit.id === 'ex1') unlockAch('parcial', fresh);
         if (S.mode === 'skip') {
-          // "Saltar aquí": marca como hechas todas las lecciones hasta esta unidad
+          // "Saltar aquí": marca como hechas todas las lecciones hasta este mundo
           for (const n of NODES) {
             if (n.unit.index > S.unit.index) break;
             if (!isDone(n)) state.lessons[n.id] = { stars: 1, times: 0, best: 0, skipped: true };
@@ -951,9 +973,9 @@
         <p class="muted">${mistakes.length ? 'Se mezclan con ejercicios de lecciones que ya hiciste.' : anyDone ? 'Puedes hacer un repaso general de lo aprendido.' : 'Completa tu primera lección en el camino.'}</p>
         <button class="btn green" data-start ${anyDone || mistakes.length ? '' : 'disabled'}>Empezar repaso</button>
       </div>
-      ${Object.keys(byUnit).length ? `<div class="card" style="margin-top:16px"><h3>Errores por unidad</h3>${UNITS.filter((u) => byUnit[u.id]).map((u) => `
+      ${Object.keys(byUnit).length ? `<div class="card" style="margin-top:16px"><h3>Errores por mundo</h3>${UNITS.filter((u) => byUnit[u.id]).map((u) => `
         <div class="exam-row"><div style="font-weight:800"><span style="color:${u.color}">●</span> ${esc(u.title)}</div><div class="days">${byUnit[u.id]}</div></div>`).join('')}</div>` : ''}
-      <div class="card" style="margin-top:16px"><h3>Practicar por unidad</h3><p class="muted small">12 ejercicios al azar de la unidad, sin gastar vidas.</p>
+      <div class="card" style="margin-top:16px"><h3>Practicar por mundo</h3><p class="muted small">12 ejercicios al azar del mundo, sin gastar vidas.</p>
         <div class="seg">${UNITS.filter((u) => u.kind !== 'exam').map((u) => `<button data-pr="${u.id}">${u.num}. ${esc(u.title)}</button>`).join('')}</div></div>`;
     view.querySelector('[data-start]').onclick = launchReview;
     view.querySelectorAll('[data-pr]').forEach((b) => b.onclick = () => startPractice(UNITS.find((u) => u.id === b.dataset.pr)));
@@ -964,7 +986,7 @@
     const u = UNITS.find((x) => x.id === arg) || UNITS[0];
     view.innerHTML = `
       <h1 class="page-title">Apuntes 📚</h1>
-      <p class="page-sub">Toda la teoría de cada unidad y una chuleta rápida con las funciones clave. Puedes ejecutar los ejemplos.</p>
+      <p class="page-sub">Toda la teoría de cada mundo y una chuleta rápida con las funciones clave. Puedes ejecutar los ejemplos.</p>
       <div class="tabs">${UNITS.map((x) => `<button class="${x === u ? 'on' : ''}" style="--uc:${x.color}" data-u="${x.id}">${x.kind === 'exam' ? '📝' : x.num + '.'} ${esc(x.short || x.title)}</button>`).join('')}</div>
       <input class="search" placeholder="🔎 Buscar en todas las chuletas (p. ej. apply, subset, NA…)" data-search>
       <div data-cheat></div>
@@ -977,7 +999,7 @@
         ? UNITS.flatMap((x) => (x.cheat || []).map((r) => ({ r, x }))).filter(({ r }) => (r[0] + ' ' + r[1]).toLowerCase().includes(q.toLowerCase()))
         : (u.cheat || []).map((r) => ({ r, x: u }));
       cheatBox.innerHTML = rows.length ? `<div class="card" style="--uc:${u.color}"><h3>${q ? `Resultados para “${esc(q)}”` : '⚡ Chuleta · ' + esc(u.title)}</h3>
-        ${rows.map(({ r, x }) => `<div class="cheat-row"><pre>${hl(r[0])}</pre><div>${inline(r[1])}${q ? ` <span class="small faint">· U${x.num || ''}</span>` : ''}</div></div>`).join('')}</div>` : (q ? '<p class="muted">Sin resultados.</p>' : '');
+        ${rows.map(({ r, x }) => `<div class="cheat-row"><pre>${hl(r[0])}</pre><div>${inline(r[1])}${q ? ` <span class="small faint">· M${x.num || ''}</span>` : ''}</div></div>`).join('')}</div>` : (q ? '<p class="muted">Sin resultados.</p>' : '');
       notesBox.hidden = !!q;
     };
     view.querySelector('[data-search]').oninput = (e) => renderCheat(e.target.value.trim());
@@ -990,7 +1012,7 @@
       l.theory.forEach((c) => { const r = md(c.md); allBlocks.push(...r.blocks); html += `<h3>${inline(c.title)}</h3>${r.html}`; });
       html += '</div></div>';
     });
-    notesBox.innerHTML = `<div style="margin-top:24px">${html || '<p class="muted">Esta sección es de examen: no tiene teoría propia. Repasa las unidades anteriores.</p>'}</div>`;
+    notesBox.innerHTML = `<div style="margin-top:24px">${html || '<p class="muted">Esta sección es de examen: no tiene teoría propia. Repasa los mundos anteriores.</p>'}</div>`;
     UI.wireCodeBlocks(notesBox, allBlocks, { onCopy: copyToConsole });
   }
 

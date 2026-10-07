@@ -17,8 +17,9 @@ pasan a autoevaluación.
 
 ## Qué hay dentro
 
-- 8 unidades + 2 simulacros (Parcial 1 y examen final), 67 niveles y más de 430 ejercicios.
-- Temas 1–3 a partir de los apuntes, el banco de ejercicios, los scripts de clase y el simulacro de Canvas.
+- 9 mundos (Vectores, Matrices y listas, Data frames, Condicionales, Bucles, Funciones, dplyr,
+  ggplot2 y R Markdown, Análisis exploratorio) + 2 simulacros, 62 niveles y unos 400 ejercicios.
+- Temas 2–3 a partir de los apuntes, el banco de ejercicios, los scripts de clase y el simulacro de Canvas.
 - Temas 4–6 (funciones, dplyr/ggplot2/R Markdown, análisis exploratorio) según la guía docente.
 - Consola R tipo RStudio (script, consola, environment, gráficos), repaso de errores, apuntes y chuletas.
 - El progreso se guarda en el navegador; desde **Perfil** se puede exportar e importar.

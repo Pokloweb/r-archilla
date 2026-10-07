@@ -2,7 +2,7 @@
 (function () {
   const R = String.raw;
   RA_UNITS.push({
-    id: 'u6', num: 6, tema: 'Tema 4', short: 'Funciones y ficheros', title: 'Funciones, texto y ficheros', color: '#00c2a8',
+    id: 'u6', tema: 'Tema 4', icon: '🧩', short: 'Funciones', title: 'Funciones, texto y ficheros', color: '#00c2a8',
     desc: R`Crea tus propias funciones, aplica funciones a colecciones, trabaja con texto y lee/escribe archivos CSV.`,
     cheat: [
       [R`f <- function(x, y = 2) { x * y }`, R`Definir una función con un argumento por defecto.`],
@@ -366,7 +366,7 @@ media <- mean(notas$nota)`, hint: R`«read.csv("notas_es.csv", sep = ";", dec = 
       },
     ],
     boss: {
-      id: 'u6b', title: 'Examen Unidad 6', icon: '🏰', desc: R`Funciones y ficheros.`,
+      id: 'u6b', title: 'Jefe del mundo', icon: '🏰', desc: R`Funciones y ficheros.`,
       exercises: [
         { type: 'output', q: R`¿Qué muestra R?`, code: R`g <- function(x, n = 2) {
   if (x > 10) return("grande")

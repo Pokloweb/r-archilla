@@ -10,7 +10,7 @@
   pagado = c(TRUE, TRUE, FALSE, TRUE, TRUE, FALSE, TRUE, TRUE)
 )`;
   RA_UNITS.push({
-    id: 'ex1', kind: 'exam', tema: 'Temas 1–3', short: 'Simulacro P1', title: 'Simulacro Parcial 1', color: '#7c4dff',
+    id: 'ex1', kind: 'exam', icon: '🎓', tema: 'Temas 1–3', short: 'Simulacro P1', title: 'Simulacro Parcial 1', color: '#7c4dff',
     desc: R`Preparación para el **Parcial 1 (15 %)**: una parte escrita (predecir resultados) y otra en ordenador como con Proctorio. Necesitas un 80 % para superarlo.`,
     cheat: [
       [R`v[!is.na(v) & v > 5]`, R`Filtrar no faltantes que cumplen una condición.`],

@@ -1,4 +1,4 @@
-// Unidad 7 — Tema 5: paquetes para ciencia de datos (dplyr, ggplot2, R Markdown)
+// Tema 5: paquetes para ciencia de datos — Mundo dplyr y Mundo ggplot2 + R Markdown
 (function () {
   const R = String.raw;
   const F = '```';
@@ -10,10 +10,10 @@
   asistencia = c(95, 70, 100, 85, 90, 60, 80, 88)
 )`;
   RA_UNITS.push({
-    id: 'u7', num: 7, tema: 'Tema 5', short: 'dplyr y ggplot2', title: 'Paquetes: dplyr, ggplot2 y R Markdown', color: '#e84393',
-    desc: R`Las herramientas profesionales del *tidyverse*: manipular datos con dplyr, gráficos con ggplot2 e informes con R Markdown.`,
+    id: 'u7d', tema: 'Tema 5', icon: '🧹', short: 'dplyr', title: 'dplyr: manipular datos', color: '#e84393',
+    desc: R`El pipe y los verbos de dplyr: filter, select, mutate, arrange, group_by y summarise. Lo mismo que con corchetes, pero más claro.`,
     cheat: [
-      [R`library(dplyr); library(ggplot2)`, R`Cargar los paquetes.`],
+      [R`library(dplyr)`, R`Cargar el paquete.`],
       [R`df |> f()   # o  df %>% f()`, R`Pipe: pasa el resultado de la izquierda como primer argumento. Atajo «Ctrl+Shift+M».`],
       [R`filter(df, nota >= 5, grupo == "A")`, R`Filtrar filas (comas = Y).`],
       [R`select(df, alumno, nota); select(df, -id)`, R`Elegir / quitar columnas.`],
@@ -21,7 +21,34 @@
       [R`arrange(df, nota); arrange(df, desc(nota))`, R`Ordenar ascendente / descendente.`],
       [R`group_by(df, grupo) |> summarise(media = mean(nota), n = n())`, R`Resumen por grupos.`],
       [R`count(df, grupo)`, R`Contar filas por grupo.`],
+      [R`pull(df, columna)`, R`Extraer una columna como vector.`],
       [R`rename(df, nuevo = viejo)`, R`Renombrar columnas.`],
+    ],
+    lessons: [], // al final del archivo se mueven aquí u7l1–u7l4
+    boss: {
+      id: 'u7db', title: 'Examen dplyr', icon: '🏰', desc: R`Pipelines completos con dplyr.`, packages: ['dplyr'],
+      exercises: [
+        { type: 'output', q: R`¿Qué muestra R?`, setup: R`library(dplyr)`, code: R`mtcars |> filter(cyl == 4, mpg > 30) |> nrow()`, answers: [R`[1] 4`] },
+        { type: 'output', q: R`¿Qué muestra R?`, setup: R`library(dplyr)
+${NOTAS}`, code: R`notas |> mutate(media = (parcial1 + parcial2) / 2) |> filter(media >= 7) |> pull(alumno)`, answers: [R`[1] "Ana"   "Marta" "Elena"`], explain: R`Medias: Ana 7.75, Marta 9.25, Elena 7.5. Jorge se queda en 6.75.` },
+        { type: 'match', q: R`Empareja cada verbo de dplyr con su equivalente en R base`, pairs: [[R`filter(df, x > 5)`, R`df[df$x > 5, ]`], [R`select(df, a, b)`, R`df[, c("a", "b")]`], [R`mutate(df, y = x * 2)`, R`df$y <- df$x * 2`], [R`arrange(df, x)`, R`df[order(df$x), ]`]] },
+        { type: 'code', q: R`Con «notas» y dplyr, guarda en «ranking» los alumnos con asistencia ≥ 85, con una columna «media» (media de los dos parciales), ordenados de mayor a menor media y solo con las columnas alumno y media.`, setup: R`library(dplyr)
+${NOTAS}`, check: R`identical(names(ranking), c("alumno", "media")) && identical(ranking$alumno, c("Marta", "Ana", "Jorge", "Lucía", "Pablo"))`, solution: R`ranking <- notas |>
+  filter(asistencia >= 85) |>
+  mutate(media = (parcial1 + parcial2) / 2) |>
+  arrange(desc(media)) |>
+  select(alumno, media)`, hint: R`filter → mutate → arrange(desc()) → select.` },
+        { type: 'code', q: R`Con «mtcars», guarda en «res» por número de marchas («gear»): «n» coches, «hp_medio» y la proporción de manuales «prop_manual» (media de «am»).`, setup: R`library(dplyr)`, check: R`.eq(res$gear, c(3, 4, 5)) && .eq(res$n, c(15, 12, 5)) && .eq(res$prop_manual, as.vector(tapply(mtcars$am, mtcars$gear, mean)))`, solution: R`res <- mtcars |>
+  group_by(gear) |>
+  summarise(n = n(), hp_medio = mean(hp), prop_manual = mean(am))`, hint: R`La media de una columna 0/1 es la proporción de unos.` },
+      ],
+    },
+  });
+  RA_UNITS.push({
+    id: 'u7', tema: 'Tema 5', icon: '🎨', short: 'ggplot2', title: 'ggplot2 y R Markdown', color: '#3949ab',
+    desc: R`Gráficos profesionales por capas con ggplot2 e informes reproducibles con R Markdown.`,
+    cheat: [
+      [R`library(ggplot2)`, R`Cargar el paquete.`],
       [R`ggplot(df, aes(x = a, y = b)) + geom_point()`, R`Gráfico de dispersión.`],
       [R`geom_line(); geom_col(); geom_bar()`, R`Líneas; barras con altura dada; barras que cuentan.`],
       [R`geom_histogram(bins = 10); geom_boxplot()`, R`Histograma; diagrama de caja.`],
@@ -391,16 +418,17 @@ También puedes poner código **en línea** dentro del texto (comilla invertida,
       },
     ],
     boss: {
-      id: 'u7b', title: 'Examen Unidad 7', icon: '🏰', desc: R`dplyr y ggplot2 en acción.`, packages: ['dplyr', 'ggplot2'],
+      id: 'u7b', title: 'Examen ggplot2', icon: '🏰', desc: R`Gráficos e informes.`, packages: ['dplyr', 'ggplot2'],
       exercises: [
-        { type: 'output', q: R`¿Qué muestra R?`, setup: R`library(dplyr)`, code: R`mtcars |> filter(hp > 200) |> nrow()`, answers: [R`[1] 7`] },
-        { type: 'output', q: R`¿Qué muestra R?`, setup: R`library(dplyr)
-${NOTAS}`, code: R`notas |> filter(asistencia >= 85) |> arrange(parcial1) |> pull(alumno) |> head(2)`, answers: [R`[1] "Lucía" "Pablo"`] },
-        { type: 'mc', q: R`¿Qué pipeline da el parcial1 medio de los alumnos con asistencia ≥ 80 por grupo?`, options: [R`notas |> filter(asistencia >= 80) |> group_by(grupo) |> summarise(m = mean(parcial1))`, R`notas |> group_by(grupo) |> filter(mean(parcial1)) |> summarise(asistencia >= 80)`, R`notas |> summarise(m = mean(parcial1)) |> filter(asistencia >= 80)`, R`notas |> select(asistencia >= 80) |> mean(parcial1)`], answer: 0, mono: true },
-        { type: 'code', q: R`Con «mtcars» y dplyr, guarda en «res» por número de cilindros: «n» (coches), «mpg_medio» y «hp_max», ordenado por mpg_medio descendente.`, setup: R`library(dplyr)`, check: R`.eq(res$cyl, c(4, 6, 8)) && .eq(res$n, c(11, 7, 14)) && .eq(res$hp_max, c(113, 175, 335))`, solution: R`res <- mtcars |>
-  group_by(cyl) |>
-  summarise(n = n(), mpg_medio = mean(mpg), hp_max = max(hp)) |>
-  arrange(desc(mpg_medio))`, hint: R`group_by → summarise → arrange(desc()).` },
+        { type: 'mc', q: R`¿Qué código dibuja la distribución de «mpg» separada por número de cilindros?`, options: [R`ggplot(mtcars, aes(x = factor(cyl), y = mpg)) + geom_boxplot()`, R`ggplot(mtcars, aes(x = mpg)) + geom_line()`, R`ggplot(mtcars, aes(x = cyl, y = mpg)) |> geom_boxplot()`, R`ggplot(mtcars) + geom_bar(mpg)`], answer: 0, mono: true },
+        { type: 'mc', q: R`Este código da error. ¿Por qué?`, code: R`ggplot(mtcars, aes(x = wt, y = mpg)) |>
+  geom_point()`, options: [R`Las capas de ggplot se unen con «+», no con el pipe`, R`Falta poner color`, R`«wt» no existe en mtcars`, R`geom_point necesita argumentos`], answer: 0 },
+        { type: 'match', q: R`Empareja cada opción de chunk con su efecto`, pairs: [[R`echo = FALSE`, R`Oculta el código`], [R`eval = FALSE`, R`No lo ejecuta`], [R`include = FALSE`, R`No muestra nada`], [R`message = FALSE`, R`Oculta mensajes`]] },
+        { type: 'code', q: R`Guarda en «p» un gráfico de dispersión de «mtcars» con «hp» en x y «mpg» en y, un panel por tipo de cambio (facet_wrap(~ am)) y el título "Potencia y consumo".`, setup: R`library(ggplot2)`, check: R`inherits(p, "ggplot") && inherits(p$layers[[1]]$geom, "GeomPoint") && inherits(p$facet, "FacetWrap") && identical(p$labels$title, "Potencia y consumo")`, solution: R`p <- ggplot(mtcars, aes(x = hp, y = mpg)) +
+  geom_point() +
+  facet_wrap(~ am) +
+  labs(title = "Potencia y consumo")
+p`, hint: R`Suma «facet_wrap(~ am)» y «labs(title = ...)».` },
         { type: 'code', q: R`Con «notas», calcula la media de los dos parciales con mutate y guarda en «p» un gráfico de barras (geom_col) con «alumno» en x y «media» en y, coloreando el relleno por «grupo».`, setup: R`library(dplyr)
 library(ggplot2)
 ${NOTAS}`, check: R`inherits(p, "ggplot") && inherits(p$layers[[1]]$geom, "GeomCol") && "media" %in% names(p$data) && !is.null(p$mapping$fill)`, solution: R`notas <- notas |> mutate(media = (parcial1 + parcial2) / 2)
@@ -410,4 +438,8 @@ p`, hint: R`Primero mutate, después «ggplot(notas, aes(x = alumno, y = media, 
       ],
     },
   });
+  // Las cuatro primeras lecciones (pipe, filter/select, mutate/arrange, group_by) forman el mundo dplyr
+  const dplyrMundo = RA_UNITS.find((u) => u.id === 'u7d');
+  const ggplotMundo = RA_UNITS.find((u) => u.id === 'u7');
+  dplyrMundo.lessons = ggplotMundo.lessons.splice(0, 4);
 })();

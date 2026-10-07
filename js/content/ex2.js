@@ -10,7 +10,7 @@
   devuelto = c(FALSE, FALSE, TRUE, FALSE, FALSE, FALSE, FALSE, TRUE, FALSE, FALSE)
 )`;
   RA_UNITS.push({
-    id: 'ex2', kind: 'exam', tema: 'Temas 1–6', short: 'Simulacro final', title: 'Simulacro Examen Final', color: '#2d3436',
+    id: 'ex2', kind: 'exam', icon: '🏆', tema: 'Temas 1–6', short: 'Simulacro final', title: 'Simulacro Examen Final', color: '#2d3436',
     desc: R`El examen final vale el **60 %** (mínimo un 5): parte escrita (5 puntos) y parte en ordenador con Proctorio (5 puntos). Este simulacro repasa todo el temario.`,
     cheat: [
       [R`str(df); summary(df); colSums(is.na(df))`, R`Primer vistazo a los datos.`],

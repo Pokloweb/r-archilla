@@ -9,7 +9,7 @@
   carrera = c("IACD", "ADE", "IACD", "Derecho", "ADE", "IACD", "ADE", "Derecho", "IACD", "ADE")
 )`;
   RA_UNITS.push({
-    id: 'u8', num: 8, tema: 'Tema 6', short: 'Análisis exploratorio', title: 'Análisis exploratorio de datos', color: '#3c8dbc',
+    id: 'u8', tema: 'Tema 6', icon: '🔍', short: 'Análisis exploratorio', title: 'Análisis exploratorio (EDA)', color: '#3c8dbc',
     desc: R`Describe y visualiza datos como un científico de datos: medidas, tablas de frecuencias, gráficos y relaciones entre variables.`,
     cheat: [
       [R`mean(x); median(x)`, R`Media y mediana (centralidad).`],
@@ -250,7 +250,7 @@ grandes <- sum(iris$Petal.Length > 5)`, hint: R`«round(cor(x, y), 2)».` },
       },
     ],
     boss: {
-      id: 'u8b', title: 'Examen Unidad 8', icon: '🏰', desc: R`Un análisis exploratorio de principio a fin.`,
+      id: 'u8b', title: 'Jefe del mundo', icon: '🏰', desc: R`Un análisis exploratorio de principio a fin.`,
       exercises: [
         { type: 'output', q: R`¿Qué muestra R?`, code: R`x <- c(4, 8, 6, 2, 10)
 c(mean(x), median(x))`, answers: [R`[1] 6 6`] },

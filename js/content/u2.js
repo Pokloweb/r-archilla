@@ -1,9 +1,9 @@
-// Unidad 2 — Tema 2 (parte 1): tipos de datos y vectores
+// Tema 2 (parte 1): Mundo Vectores
 (function () {
   const R = String.raw;
   RA_UNITS.push({
-    id: 'u2', num: 2, tema: 'Tema 2', short: 'Vectores', title: 'Tipos de datos y vectores', color: '#1cb0f6',
-    desc: R`Numéricos, texto y lógicos; crear, acceder, operar y filtrar vectores; NA y factores. La base de todo en R.`,
+    id: 'u2', tema: 'Tema 2', icon: '🧵', short: 'Vectores', title: 'Vectores', color: '#1cb0f6',
+    desc: R`La estructura básica de R: crear, acceder, operar y filtrar vectores, valores NA, coerción de tipos y factores.`,
     cheat: [
       [R`class(x); typeof(x); mode(x)`, R`Tipo/clase de un objeto («numeric», «integer», «character», «logical»…).`],
       [R`5L`, R`La «L» fuerza un entero (*integer*). «5» a secas es *double*.`],
@@ -32,61 +32,6 @@
       [R`factor(x, levels = c("bajo", "medio", "alto"))`, R`Fijar el orden de los niveles.`],
     ],
     lessons: [
-      {
-        id: 'u2l1', title: 'Tipos de datos', icon: '🔤', desc: R`numeric, integer, character, logical… y cómo saber cuál es cuál.`,
-        theory: [
-          { title: 'No todos los datos son iguales', md: R`Piensa en una compra online:
-
-| Campo | Ejemplo | Tipo |
-|---|---|---|
-| importe | 37.25 | numérico |
-| cantidad | 2 | numérico |
-| usuario | "jlopez521" | texto |
-| pagado | TRUE | lógico |
-
-Sobre importes hacemos **cálculos**; sobre textos, **búsquedas**; los lógicos solo pueden ser **verdadero o falso**. Por eso R necesita saber el **tipo** de cada dato.` },
-          { title: 'Los tipos básicos de R', md: R`- **numeric**: números. Dos subtipos: **double** (con decimales, el tipo por defecto) e **integer** (enteros, se escriben con «L»: «3L»).
-- **character**: texto, siempre **entre comillas**: «"hola"» o «'hola'».
-- **logical**: «TRUE» o «FALSE» (en mayúsculas).
-- **complex**: números complejos, «1 + 2i» (casi no los usarás).
-
-~~~r
-x <- 5
-y <- 5L
-nombre <- "Ana"
-pagado <- TRUE
-class(x)
-class(y)
-class(nombre)
-class(pagado)
-~~~` },
-          { title: 'class(), typeof() y mode()', md: R`- «class()»: la clase del objeto (la más útil, sobre todo con estructuras complejas).
-- «typeof()»: cómo se guarda internamente (distingue «double» de «integer»).
-- «mode()»: el tipo general de almacenamiento.
-
-~~~r
-x <- 5
-typeof(x)   # "double"
-class(x)    # "numeric"
-y <- 5L
-typeof(y)   # "integer"
-~~~
-
->! «"5"» (con comillas) es **texto**, no un número: «"5" + 1» da error.` },
-        ],
-        exercises: [
-          { type: 'match', q: R`Empareja cada valor con su clase`, pairs: [[R`3.14`, R`numeric`], [R`"3.14"`, R`character`], [R`FALSE`, R`logical`], [R`7L`, R`integer`]] },
-          { type: 'output', q: R`¿Qué muestra R?`, code: R`class("TRUE")`, answers: [R`[1] "character"`], explain: R`Está entre comillas: es un **texto**, no un valor lógico.` },
-          { type: 'output', q: R`¿Qué muestra R?`, code: R`typeof(10)`, answers: [R`[1] "double"`], explain: R`Los números sin «L» son *double* por defecto.` },
-          { type: 'mc', q: R`¿Cómo creas un número **entero** (integer) con valor 10?`, options: [R`10L`, R`10`, R`"10"`, R`int(10)`], answer: 0, mono: true },
-          { type: 'tf', q: R`«true» (en minúsculas) es un valor lógico válido en R.`, answer: false, explain: R`Los lógicos son «TRUE» y «FALSE» en mayúsculas (también «T» y «F», pero mejor no usarlos).` },
-          { type: 'mc', q: R`¿Qué pasa al ejecutar «"5" + 1»?`, options: [R`Da error: no se puede sumar un texto`, R`Devuelve 6`, R`Devuelve "51"`, R`Devuelve "6"`], answer: 0 },
-          { type: 'code', q: R`Crea las variables «producto» (texto "Teclado"), «precio» (37.25), «unidades» (el entero 2, usa «L») y «pagado» (TRUE).`, check: R`identical(producto, "Teclado") && .eq(precio, 37.25) && identical(unidades, 2L) && isTRUE(pagado)`, solution: R`producto <- "Teclado"
-precio <- 37.25
-unidades <- 2L
-pagado <- TRUE`, hint: R`El texto va entre comillas y el entero lleva «L»: «2L».` },
-        ],
-      },
       {
         id: 'u2l2', title: 'Comprobar y convertir tipos', icon: '🔄', desc: R`Funciones is.* y as.*, y la coerción automática.`,
         theory: [
@@ -158,6 +103,22 @@ length(temperaturas)
 > 💡 En R, ¡un número suelto ya es un vector de longitud 1! Por eso ves «[1]» delante.
 
 Puedes **unir** vectores: «c(v1, v2)».` },
+          { title: 'Tipos de vector', md: R`Según lo que guarden, hay tres tipos de vector que usarás siempre:
+
+| Tipo | Ejemplo | «class()» |
+|---|---|---|
+| numérico | «c(7, 4.5, 9)» | «"numeric"» |
+| texto | «c("Ana", "Luis")» | «"character"» |
+| lógico | «c(TRUE, FALSE)» | «"logical"» |
+
+~~~r
+notas <- c(7, 4.5, 9)
+class(notas)
+class(c("Ana", "Luis"))
+class(notas >= 5)
+~~~
+
+>! Los textos van **entre comillas** y los lógicos se escriben «TRUE» / «FALSE» en mayúsculas. «"5"» es texto, no un número.` },
           { title: 'Secuencias: «:» y seq()', md: R`~~~r
 1:10                      # de 1 a 10 de uno en uno
 10:1                      # hacia atrás
@@ -270,7 +231,20 @@ v1 + v2
 v1 > 4
 ~~~
 
-> 💡 Sumar medio punto a todas las notas es tan fácil como «notas + 0.5».` },
+> 💡 Sumar medio punto a todas las notas es tan fácil como «notas + 0.5».
+
+Dos operadores que usarás muchísimo para filtrar:
+
+| Operador | Qué da | Ejemplo |
+|---|---|---|
+| «%%» | resto de la división | «7 %% 2» → 1 |
+| «%/%» | división entera | «7 %/% 2» → 3 |
+
+~~~r
+v <- 1:10
+v %% 2      # 0 = par, 1 = impar
+v %% 3 == 0 # ¿múltiplo de 3?
+~~~` },
           { title: 'Reciclaje', md: R`Si los vectores tienen distinta longitud, R **repite** (recicla) el corto:
 
 ~~~r
@@ -492,7 +466,7 @@ niveles <- levels(pos_factor)`, hint: R`«factor()» y después «levels()».` }
       },
     ],
     boss: {
-      id: 'u2b', title: 'Examen Unidad 2', icon: '🏰', desc: R`Vectores a fondo, como en el parcial.`,
+      id: 'u2b', title: 'Jefe del mundo', icon: '🏰', desc: R`Vectores a fondo, como en el parcial.`,
       exercises: [
         { type: 'output', q: R`¿Qué muestra R?`, code: R`v <- c(2, 9, 4, 7, 1)
 v[v > mean(v)]`, answers: [R`[1] 9 7`], explain: R`La media es 4.6; los mayores son 9 y 7.` },
@@ -514,4 +488,7 @@ dias_altos <- which(ventas > 100)`, hint: R`«which()» ignora los NA automátic
       ],
     },
   });
+  // Orden del mundo: primero crear y usar vectores; la coerción de tipos, después de NA
+  const orden = ['u2l3', 'u2l4', 'u2l5', 'u2l6', 'u2l7', 'u2l2', 'u2l8'];
+  RA_UNITS.find((u) => u.id === 'u2').lessons.sort((a, b) => orden.indexOf(a.id) - orden.indexOf(b.id));
 })();

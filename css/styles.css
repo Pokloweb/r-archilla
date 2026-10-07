@@ -217,6 +217,32 @@ code, pre, textarea.code { font-family: var(--mono); }
 .icon-btn { background: none; border: 0; cursor: pointer; font-size: 22px; color: var(--text-faint); padding: 6px; border-radius: 10px; line-height: 1; }
 .icon-btn:hover { background: var(--bg-soft); color: var(--text-soft); }
 
+/* ---------- Mapa de mundos ---------- */
+.world-map { margin-bottom: 34px; }
+.wm-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+.wm-head .page-title { margin: 0; }
+.wm-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; }
+.wm-tile {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 2px; text-align: left; min-width: 0;
+  border: 2px solid var(--line); border-bottom-width: 4px; border-radius: 16px; padding: 12px;
+  background: var(--card); color: var(--text); font-family: inherit; cursor: pointer;
+}
+.wm-tile:hover { background: var(--bg-soft); }
+.wm-tile:focus-visible { outline: 3px solid var(--uc); outline-offset: 2px; }
+.wm-tile.here { border-color: var(--uc); background: color-mix(in srgb, var(--uc) 10%, var(--card)); }
+.wm-tile.locked { opacity: .6; }
+.wm-tile.exam { border-style: dashed; border-bottom-style: solid; }
+.wm-icon { font-size: 28px; line-height: 1.2; }
+.wm-kicker { font-size: 11px; font-weight: 900; text-transform: uppercase; letter-spacing: .6px; color: var(--uc); }
+.wm-name { font-weight: 900; font-size: 15px; line-height: 1.2; overflow-wrap: anywhere; }
+.wm-bar { width: 100%; height: 8px; background: var(--line); border-radius: 99px; overflow: hidden; margin-top: 6px; }
+.wm-bar span { display: block; height: 100%; background: var(--uc); border-radius: 99px; }
+.wm-count { font-size: 12px; font-weight: 800; color: var(--text-soft); margin-top: 2px; }
+@media (max-width: 600px) {
+  .wm-grid { display: flex; overflow-x: auto; scroll-snap-type: x mandatory; padding-bottom: 6px; margin: 0 -16px; padding-inline: 16px; scroll-padding-inline: 16px; }
+  .wm-tile { flex: 0 0 136px; scroll-snap-align: start; }
+}
+
 /* ---------- Path ---------- */
 .unit { margin-bottom: 38px; }
 .unit-banner {
@@ -226,6 +252,16 @@ code, pre, textarea.code { font-family: var(--mono); }
   position: sticky; top: 12px; z-index: 5;
 }
 @media (max-width: 900px) { .unit-banner { top: 62px; } }
+.unit-banner .ub-main { display: flex; align-items: center; gap: 12px; min-width: 0; flex: 1; }
+@media (max-width: 600px) {
+  .hide-sm { display: none; }
+  .unit-banner { padding: 14px; }
+  .unit-banner h2 { font-size: 19px; }
+  .unit-banner .ub-icon { width: 42px; height: 42px; font-size: 24px; }
+}
+.unit-banner .ub-icon { font-size: 30px; width: 50px; height: 50px; flex: none; display: flex; align-items: center; justify-content: center; background: rgba(255,255,255,.18); border-radius: 14px; }
+.unit { scroll-margin-top: 12px; }
+@media (max-width: 900px) { .unit { scroll-margin-top: 62px; } }
 .unit-banner .ub-kicker { font-weight: 800; opacity: .85; font-size: 14px; text-transform: uppercase; letter-spacing: .5px; }
 .unit-banner h2 { margin: 2px 0 0; font-size: 21px; font-weight: 900; line-height: 1.2; }
 .unit-banner .ub-actions { display: flex; gap: 8px; flex: none; }

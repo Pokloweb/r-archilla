@@ -2,7 +2,7 @@
 (function () {
   const R = String.raw;
   RA_UNITS.push({
-    id: 'u3', num: 3, tema: 'Tema 2', short: 'Matrices y listas', title: 'Matrices, arrays y listas', color: '#ce82ff',
+    id: 'u3', tema: 'Tema 2', icon: '🧊', short: 'Matrices y listas', title: 'Matrices y listas', color: '#ce82ff',
     desc: R`Datos en filas y columnas, en varias dimensiones y estructuras flexibles que lo mezclan todo.`,
     cheat: [
       [R`matrix(1:6, nrow = 2, ncol = 3)`, R`Matriz 2×3, se rellena **por columnas**.`],
@@ -318,7 +318,7 @@ media <- mean(alumno$notas)`, hint: R`«mean(alumno$notas)».` },
       },
     ],
     boss: {
-      id: 'u3b', title: 'Examen Unidad 3', icon: '🏰', desc: R`Matrices, arrays y listas como en el simulacro.`,
+      id: 'u3b', title: 'Jefe del mundo', icon: '🏰', desc: R`Matrices, arrays y listas como en el simulacro.`,
       exercises: [
         { type: 'output', q: R`¿Qué muestra R?`, code: R`m <- matrix(1:12, nrow = 3, byrow = TRUE)
 m[3, 2]`, answers: [R`[1] 10`] },

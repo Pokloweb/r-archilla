@@ -14,7 +14,7 @@
   antiguedad = c(2, 5, 8, 4, 3, 6)
 )`;
   RA_UNITS.push({
-    id: 'u4', num: 4, tema: 'Tema 2', short: 'Data frames', title: 'Data frames: tablas de datos', color: '#ff9600',
+    id: 'u4', tema: 'Tema 2', icon: '📋', short: 'Data frames', title: 'Data frames', color: '#ff9600',
     desc: R`La estructura estrella de la ciencia de datos: crear, seleccionar, filtrar, modificar y ordenar tablas.`,
     cheat: [
       [R`df <- data.frame(a = c(1, 2), b = c("x", "y"))`, R`Crear un data frame (columnas de igual longitud).`],
@@ -320,7 +320,7 @@ jovenes_o_porteros <- subset(df_jugadores, edad < 22 | posicion == "portero")`, 
       },
     ],
     boss: {
-      id: 'u4b', title: 'Examen Unidad 4', icon: '🏰', desc: R`Data frames estilo simulacro Proctorio.`,
+      id: 'u4b', title: 'Jefe del mundo', icon: '🏰', desc: R`Data frames estilo simulacro Proctorio.`,
       exercises: [
         { type: 'output', q: R`¿Qué muestra R?`, setup: EMPLEADOS, code: R`nrow(empleados[empleados$departamento != "IT", ])`, answers: [R`[1] 3`] },
         { type: 'output', q: R`¿Qué muestra R?`, setup: EMPLEADOS, code: R`empleados[order(-empleados$antiguedad), "nombre"][2]`, answers: [R`[1] "Carlos"`] },
