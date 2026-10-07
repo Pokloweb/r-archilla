@@ -816,3 +816,15 @@ body::before {
   .plan-day:nth-child(n+4) { display: none; }
   .plan-day { grid-template-columns: 74px minmax(0, 1fr); font-size: 13px; }
 }
+.err-help { margin-top: 10px; border: 2px solid color-mix(in srgb, var(--orange) 45%, transparent); background: color-mix(in srgb, var(--orange) 10%, var(--bg)); border-radius: 12px; padding: 10px 12px; font-family: var(--font); font-size: 14px; white-space: normal; color: var(--text); }
+.err-help ul { margin: 6px 0 0; padding-left: 18px; }
+.err-help li { margin: 3px 0; }
+.console .err-help { margin: 8px 0 4px; }
+.exam-grade { display: inline-flex; align-items: baseline; gap: 8px; margin-top: 18px; padding: 10px 22px; border-radius: 16px; background: var(--bg-soft); border: 2px solid var(--line); font-weight: 800; color: var(--text-soft); }
+.exam-grade b { font-size: 44px; font-weight: 900; color: var(--text); font-variant-numeric: tabular-nums; }
+.exam-review { text-align: left; margin-top: 18px; }
+.exam-review h3 { font-size: 18px; font-weight: 900; }
+.exam-review details { border: 2px solid var(--line); border-radius: 12px; padding: 10px 12px; margin: 8px 0; background: var(--card); }
+.exam-review summary { cursor: pointer; font-weight: 800; }
+.er-sol { margin: 8px 0 4px; }
+.er-sol pre { background: var(--code-bg); border-radius: 8px; padding: 6px 10px; overflow-x: auto; }

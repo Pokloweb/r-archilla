@@ -451,7 +451,9 @@
       node, unit: node.unit, mode: node.type === 'lesson' ? 'lesson' : 'boss',
       theory: opts.skipTheory ? [] : node.theory || [], theoryIdx: 0, theoryOnly: !!opts.theoryOnly,
       queue: makeQueue(items), total: items.length, solved: 0, firstOk: 0, firstSeen: new Set(), wrongRefs: new Set(),
-      combo: 0, maxCombo: 0, xp: 0, t0: Date.now(), costsHearts: true,
+      combo: 0, maxCombo: 0, xp: 0, t0: Date.now(), costsHearts: node.type !== 'exam',
+      // Simulacros en modo examen: sin corrección hasta el final, como en el parcial
+      examMode: node.type === 'exam', noRetry: node.type === 'exam', examReview: [],
     };
     if (node.packages && window.REngine) REngine.install(node.packages).catch(() => {});
     openLessonUI();
@@ -580,7 +582,7 @@
     bar.style.width = pct + '%';
     bar.style.background = S.phase === 'theory' ? 'var(--purple)' : '';
     const hEl = lessonEl.querySelector('[data-hearts]');
-    hEl.innerHTML = S.costsHearts && !state.infinite ? `<span class="heart">❤️</span> ${state.hearts}` : S.costsHearts ? '❤️ ∞' : '🎯';
+    hEl.innerHTML = S.costsHearts && !state.infinite ? `<span class="heart">❤️</span> ${state.hearts}` : S.costsHearts ? '❤️ ∞' : S.examMode ? '📝 Examen' : '🎯';
   }
   function heartBreak() {
     const h = lessonEl.querySelector('[data-hearts]');
@@ -711,9 +713,9 @@
     state.stats.answered++;
     S.queue.shift();
     recordStat(item.ref, ok);
-    UI.vibrate(ok ? 'ok' : 'bad');
+    if (!S.examMode) UI.vibrate(ok ? 'ok' : 'bad');
     if (ok) {
-      UI.sound('ok');
+      if (!S.examMode) UI.sound('ok');
       state.stats.correct++;
       if (ex.type === 'code') state.stats.codeOk++;
       if (ex.bug) state.stats.bugsFixed++;
@@ -725,9 +727,9 @@
         state.mistakes[item.ref]--;
         if (state.mistakes[item.ref] <= 0) delete state.mistakes[item.ref];
       }
-      if ([3, 5, 10, 15, 20].includes(S.combo)) comboBurst(S.combo);
+      if (!S.examMode && [3, 5, 10, 15, 20].includes(S.combo)) comboBurst(S.combo);
     } else {
-      UI.sound('bad');
+      if (!S.examMode) UI.sound('bad');
       S.combo = 0;
       S.wrongRefs.add(item.ref);
       state.mistakes[item.ref] = (state.mistakes[item.ref] || 0) + 1;
@@ -739,6 +741,13 @@
     updateTop();
     renderStats();
     if (S.mode === 'rush') { rushAfterAnswer(ok, ex); return; }
+    if (S.examMode) {
+      if (!ok) S.examReview.push({ ex, html: solutionHtml(ex, res) });
+      setFoot(`<span class="small muted">Respuesta guardada · verás la corrección al terminar</span><button class="btn" data-continue>Siguiente</button>`);
+      lessonEl.querySelector('[data-continue]').onclick = nextExercise;
+      setTimeout(() => { const b = lessonEl.querySelector('[data-continue]'); b && b.focus(); }, 30);
+      return;
+    }
     const solution = ok ? '' : solutionHtml(ex, res);
     const explain = ex.explain ? `<div style="margin-top:6px">${inline(ex.explain)}</div>` : '';
     const note = res.note ? `<div style="margin-top:6px">${inline(res.note)}</div>` : '';
@@ -868,7 +877,7 @@
     bar.style.width = '100%';
     const mm = Math.floor(secs / 60), ss = String(secs % 60).padStart(2, '0');
     const titles = { review: '¡Repaso completado!', practice: '¡Práctica completada!', lesson: '¡Lección completada!', daily: '¡Reto del día superado!', bugs: '¡Bugs aplastados!', rush: '¡Tiempo!' };
-    const title = !passed ? 'Casi… ¡necesitas un 80%!' : titles[S.mode] || '¡Examen superado!';
+    const title = !passed ? (S.examMode ? 'Simulacro no superado (necesitas un 8)' : 'Casi… ¡necesitas un 80%!') : titles[S.mode] || '¡Examen superado!';
     const showStars = S.mode === 'lesson' || ((S.mode === 'boss' || S.mode === 'skip') && passed);
     setBody(`<div class="results">
       <div class="m res-mascot">${UI.mascot(passed ? 'wow' : 'sad')}</div>
@@ -884,6 +893,9 @@
         ${S.maxCombo >= 3 ? `<div class="res-card" style="--rc:var(--orange)"><div class="rt">Mejor racha</div><div class="rv">🔥 ${S.maxCombo}</div></div>` : ''}
       </div>
       ${extraLine ? `<p class="res-extra">${extraLine}</p>` : ''}
+      ${S.examMode ? `<div class="exam-grade"><span>Nota</span><b>${(acc * 10).toFixed(1).replace('.', ',')}</b><span>/ 10</span></div>
+        ${S.examReview.length ? `<div class="exam-review"><h3>Revisa tus fallos</h3>${S.examReview.map((r, i) => `<details${i === 0 ? ' open' : ''}><summary>${i + 1}. ${inline(r.ex.q.replace(/\*\*/g, '').slice(0, 110))}${r.ex.q.length > 110 ? '…' : ''}</summary>
+          ${r.ex.code ? `<div class="code-block"><pre>${hl(r.ex.code)}</pre></div>` : ''}<div class="er-sol"><b>Solución:</b> ${r.html}</div>${r.ex.explain ? `<div class="small muted">${inline(r.ex.explain)}</div>` : ''}</details>`).join('')}</div>` : '<p class="res-extra">¡Sin fallos! 🎉</p>'}` : ''}
       ${S.mode === 'review' && !state.infinite ? '<p class="muted" style="margin-top:16px">+1 ❤️ por repasar</p>' : ''}
       ${S.wrongRefs.size && S.mode !== 'review' ? `<p class="muted" style="margin-top:16px">Has fallado ${S.wrongRefs.size} ejercicio(s): irán a tu <b>Repaso</b> en Entrenar 🎯</p>` : ''}
       ${fresh.map((a) => `<div class="badge-new"><span style="font-size:30px">${a.icon}</span><div style="text-align:left"><div>¡Logro desbloqueado: ${esc(a.name)}!</div><div class="small muted">${esc(a.desc)}</div></div></div>`).join('<br>')}
@@ -1140,6 +1152,7 @@
         <div>
           <div class="pane-title"><span>Console</span></div>
           <div class="console" data-console><span class="l-info">Pulsa ▶ Ejecutar para probar tu código, y Comprobar cuando lo tengas.</span></div>
+          <div data-errhelp></div>
           <div class="pane-title" style="margin-top:12px"><span>Environment</span></div>
           <div class="env-box" data-env></div>
         </div>
@@ -1158,6 +1171,7 @@
       const r = await REngine.grade(ed.value, { setup: ex.setup || '', check: 'TRUE' });
       con.innerHTML = '';
       UI.consoleEl(r.lines, r.images, con);
+      el.querySelector('[data-errhelp]').innerHTML = RErrors.explain(r.lines);
       if (!r.lines.length && !r.images.length) con.innerHTML = '<span class="l-info">(sin salida)</span>';
       showEnv(r.env);
     }
@@ -1180,6 +1194,7 @@
         const r = await REngine.grade(ed.value, { setup: ex.setup || '', check: ex.check || 'TRUE' });
         con.innerHTML = '';
         UI.consoleEl(r.lines, r.images, con);
+        el.querySelector('[data-errhelp]').innerHTML = RErrors.explain(r.lines);
         if (!r.lines.length && !r.images.length) con.innerHTML = '<span class="l-info">(sin salida)</span>';
         showEnv(r.env);
         let ok = r.passed;
@@ -1598,6 +1613,8 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
       }
       const r = await REngine.console(code);
       UI.appendConsole(con, r.lines);
+      const help = RErrors.explain(r.lines);
+      if (help) { const d = document.createElement('div'); d.innerHTML = help; con.appendChild(d.firstElementChild); con.scrollTop = con.scrollHeight; }
       for (const img of r.images) plots.prepend(UI.imageCanvas(img));
       showEnv(r.env);
       state.stats.consoleRuns++;

@@ -14,7 +14,7 @@ const only = process.argv.slice(2);
 const ctx = { RA_UNITS: [], console };
 vm.createContext(ctx);
 const html = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
-for (const m of html.matchAll(/src="(js\/content\/[^"]+)"/g)) {
+for (const m of html.matchAll(/src="(js\/content\/[^"?]+)/g)) {
   if (!fs.existsSync(path.join(ROOT, m[1]))) continue;
   vm.runInContext(fs.readFileSync(path.join(ROOT, m[1]), 'utf8'), ctx, { filename: m[1] });
 }
