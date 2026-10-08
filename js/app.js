@@ -771,7 +771,7 @@
     }
     const solution = ok ? '' : solutionHtml(ex, res);
     const explain = ex.explain ? `<div style="margin-top:6px">${inline(ex.explain)}</div>` : '';
-    const note = res.note ? `<div style="margin-top:6px">${inline(res.note)}</div>` : '';
+    const note = res.noteHtml ? `<div style="margin-top:6px">${res.noteHtml}</div>` : res.note ? `<div style="margin-top:6px">${inline(res.note)}</div>` : '';
     const traceCode = ex.type === 'code' ? ex.solution : ex.code;
     const canTrace = window.Trace && Trace.hasLoop(traceCode) && ['output', 'code', 'mc'].includes(ex.type);
     setFoot(`
@@ -969,7 +969,6 @@
   const normOut = (s) => String(s).replace(/\r/g, '').split('\n')
     .map((l) => l.replace(/^\s*\[\d+\]\s*/, '').trim().replace(/\s+/g, ' ').replace(/'/g, '"'))
     .filter((l) => l !== '').join('\n');
-  const noQuotes = (s) => s.replace(/"/g, '');
 
   function qHeader(ex) {
     return `<p class="ls-q">${inline(ex.q)}</p>` + (ex.code && ex.type !== 'fill' ? `<div class="code-block"><pre>${hl(ex.code)}</pre></div>` : '');
@@ -1104,7 +1103,7 @@
     const multi = ex.answers[0].includes('\n');
     el.innerHTML = qHeader(ex) + `<div class="console-title">Escribe lo que muestra la consola</div>` +
       (multi ? `<textarea class="out-input" rows="${ex.answers[0].split('\n').length + 1}" spellcheck="false" placeholder="[1] ..."></textarea>` : `<input class="out-input" spellcheck="false" autocomplete="off" placeholder="[1] ...">`) +
-      `<div class="small muted" style="margin-top:6px">No hace falta copiar los espacios exactos ni el <code>[1]</code>.</div>`;
+      `<div class="small muted" style="margin-top:6px">Escríbelo como quieras: «20 40», «20 y 40», «c(20, 40)»… Lo que cuenta son los valores.</div>`;
     const inp = el.querySelector('.out-input');
     inp.addEventListener('input', ctx.changed);
     let note = '';
@@ -1115,9 +1114,20 @@
       check: async () => {
         const v = normOut(inp.value);
         const flat = (s) => s.replace(/\n/g, ' ');
-        let ok = ex.answers.some((a) => normOut(a) === v || flat(normOut(a)) === flat(v));
-        if (!ok && ex.answers.some((a) => noQuotes(normOut(a)) === noQuotes(v))) { ok = true; note = 'Ojo: R muestra los textos **entre comillas**: ' + '`' + ex.answers[0] + '`'; }
-        return { ok, note };
+        // Idéntico a la consola: correcto sin más
+        if (ex.answers.some((a) => normOut(a) === v || flat(normOut(a)) === flat(v))) return { ok: true };
+        // Mismos valores con otro formato («20 y 40», «c(20, 40)», sin comillas…): correcto, y se enseña cómo lo escribe R
+        for (const a of ex.answers) {
+          const r = SmartAnswer.compare(a, inp.value);
+          if (!r.ok) continue;
+          const tips = [];
+          if (r.quotes) tips.push('R muestra los textos **entre comillas**.');
+          if (r.kase) tips.push('Ojo con las mayúsculas: en R, «TRUE» no es «true» y «Ana» no es «ana».');
+          if (r.names) tips.push('R además muestra los **nombres** encima de cada valor.');
+          const noteHtml = `Así lo verías en la consola de R:<pre>${esc(ex.answers[0])}</pre>${tips.map((t) => inline(t)).join(' ')}`;
+          return { ok: true, noteHtml };
+        }
+        return { ok: false, note: SmartAnswer.diagnose(ex.answers[0], inp.value) };
       },
       lock: (ok) => { inp.disabled = true; inp.classList.add(ok ? 'right' : 'wrong'); },
     };

@@ -1,12 +1,12 @@
 // Service worker de R Archilla: la app funciona sin conexión y R (webR) se guarda
 // en caché tras la primera carga, así que también se puede practicar código offline.
-const VERSION = 'ra-2026-10-08-5';
+const VERSION = 'ra-2026-10-08-7';
 const SHELL = `shell-${VERSION}`;
 const RUNTIME = 'runtime-v1'; // webR, paquetes de R y fuentes: no cambian entre versiones de la app
 
 const SHELL_FILES = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
-  'js/ui.js', 'js/app.js', 'js/r-engine.js', 'js/trace.js', 'js/errors.js',
+  'js/ui.js', 'js/app.js', 'js/r-engine.js', 'js/trace.js', 'js/errors.js', 'js/smart.js',
   'js/content/u2.js', 'js/content/u3.js', 'js/content/u4.js', 'js/content/u5.js', 'js/content/ex1.js',
   'js/content/u6.js', 'js/content/u7.js', 'js/content/u8.js', 'js/content/ex2.js', 'js/content/bugs.js',
   'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png',
