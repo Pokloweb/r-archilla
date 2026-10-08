@@ -834,3 +834,6 @@ body::before {
 @media (hover: none) { .kbd-hint { display: none; } }
 :focus-visible { outline: 3px solid color-mix(in srgb, var(--brand) 70%, transparent); outline-offset: 2px; }
 .opt:focus-visible, .chip:focus-visible, .node:focus-visible { outline: 3px solid var(--brand); outline-offset: 3px; }
+.node-wrap.open { z-index: 40; }
+.path-mascot { z-index: 0; }
+.saved-note { margin-top: 14px; font-size: 13px; font-weight: 800; color: var(--text-faint); }

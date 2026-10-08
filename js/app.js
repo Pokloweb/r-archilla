@@ -75,7 +75,22 @@
     } catch (e) { /* almacenamiento no disponible */ }
     return defaultState();
   }
-  function save() { try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (e) { /* ignorar */ } }
+  let saveWarned = false;
+  function save() {
+    try {
+      localStorage.setItem(STORE_KEY, JSON.stringify(state));
+    } catch (e) {
+      if (!saveWarned) {
+        saveWarned = true;
+        setTimeout(() => toast('⚠️ Este navegador no deja guardar tu progreso (¿modo privado?). Ábrela en una pestaña normal o instálala.'), 300);
+      }
+    }
+  }
+  // Pide al navegador que no borre los datos guardados aunque falte espacio
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch (e) { /* sin soporte */ }
+  // Guarda también al cerrar o cambiar de app (por si acaso)
+  addEventListener('pagehide', () => save());
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(); });
   const today = () => dayKey(new Date());
   function dayKey(d) { return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; }
   function applyTheme() {
@@ -405,7 +420,10 @@
     clearTimeout(pathResizeT);
     pathResizeT = setTimeout(() => { if (!S && /aprender|^#?$/.test(location.hash || '#')) drawPathLines(document.getElementById('view')); }, 150);
   });
-  function closePopover() { document.querySelectorAll('.popover').forEach((p) => p.remove()); }
+  function closePopover() {
+    document.querySelectorAll('.popover').forEach((p) => p.remove());
+    document.querySelectorAll('.node-wrap.open').forEach((w) => w.classList.remove('open'));
+  }
   function openPopover(id) {
     closePopover();
     const n = NODES.find((x) => x.id === id);
@@ -425,6 +443,7 @@
           (firstOfUnit && n.unit.boss ? `<div class="pv-row"><button class="btn" data-skip>⏩ Saltar aquí (test)</button></div>` : ''));
     if (unlocked && n.type === 'lesson' && (n.theory || []).length) pv.innerHTML += `<div class="pv-row"><button class="btn" data-theory>📖 Solo teoría</button>${done ? '<button class="btn" data-exonly>✏️ Solo ejercicios</button>' : ''}</div>`;
     wrap.appendChild(pv);
+    wrap.classList.add('open'); // por encima de los nodos siguientes y de Archi
     pv.addEventListener('click', (e) => e.stopPropagation());
     const go = pv.querySelector('[data-go]');
     go && go.addEventListener('click', () => startLesson(n));
@@ -895,6 +914,7 @@
         ${S.maxCombo >= 3 ? `<div class="res-card" style="--rc:var(--orange)"><div class="rt">Mejor racha</div><div class="rv">🔥 ${S.maxCombo}</div></div>` : ''}
       </div>
       ${extraLine ? `<p class="res-extra">${extraLine}</p>` : ''}
+      <p class="saved-note">${saveWarned ? '⚠️ No se ha podido guardar en este navegador' : '💾 Progreso guardado'}</p>
       ${S.examMode ? `<div class="exam-grade"><span>Nota</span><b>${(acc * 10).toFixed(1).replace('.', ',')}</b><span>/ 10</span></div>
         ${S.examReview.length ? `<div class="exam-review"><h3>Revisa tus fallos</h3>${S.examReview.map((r, i) => `<details${i === 0 ? ' open' : ''}><summary>${i + 1}. ${inline(r.ex.q.replace(/\*\*/g, '').slice(0, 110))}${r.ex.q.length > 110 ? '…' : ''}</summary>
           ${r.ex.code ? `<div class="code-block"><pre>${hl(r.ex.code)}</pre></div>` : ''}<div class="er-sol"><b>Solución:</b> ${r.html}</div>${r.ex.explain ? `<div class="small muted">${inline(r.ex.explain)}</div>` : ''}</details>`).join('')}</div>` : '<p class="res-extra">¡Sin fallos! 🎉</p>'}` : ''}
@@ -1723,7 +1743,8 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
           <div class="seg" data-theme>${[['auto', 'Auto'], ['light', 'Claro'], ['dark', 'Oscuro']].map(([k, l]) => `<button class="${state.theme === k ? 'on' : ''}" data-t="${k}">${l}</button>`).join('')}</div></div>
       </div>
       <div class="card" style="margin-top:16px"><h3>Tus datos</h3>
-        <p class="small muted">El progreso se guarda en este navegador. Para pasarlo a otro dispositivo, exporta y luego importa el archivo.</p>
+        <p class="small muted">El progreso se guarda automáticamente en este dispositivo y navegador después de cada respuesta. Para pasarlo a otro dispositivo, exporta y luego importa el archivo.</p>
+        <p class="small muted">📱 En iPhone, la app instalada en la pantalla de inicio guarda su progreso aparte del de Safari: si ya habías avanzado en Safari, exporta allí e importa en la app.</p>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button class="btn small ghost" data-export>⬇️ Exportar progreso</button>
           <button class="btn small ghost" data-import>⬆️ Importar progreso</button>
@@ -1832,5 +1853,6 @@ hist(rnorm(200), main = "Mi primer histograma", col = "steelblue")
   window.RA = {
     state: () => state, NODES, EX_INDEX,
     try: (...refs) => startReview(refs.map((ref) => ({ ref, ex: EX_INDEX.get(ref).ex }))),
+    current: () => (S && S.current ? S.current.ex : null),
   };
 })();
